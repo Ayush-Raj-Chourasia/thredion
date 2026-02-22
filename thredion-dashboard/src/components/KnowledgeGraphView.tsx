@@ -162,7 +162,7 @@ export default function KnowledgeGraphView() {
   }
 
   // Legend
-  const uniqueCategories = [...new Set(graph.nodes.map((n) => n.category))];
+  const uniqueCategories = Array.from(new Set(graph.nodes.map((n) => n.category)));
 
   return (
     <div className="space-y-3 animate-fade-in">
