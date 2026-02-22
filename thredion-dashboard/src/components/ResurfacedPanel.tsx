@@ -83,6 +83,7 @@ export default function ResurfacedPanel({ items }: ResurfacedPanelProps) {
               href={item.memory_url}
               target="_blank"
               rel="noopener noreferrer"
+              aria-label="Open memory link"
               className="shrink-0 rounded-lg p-1.5 text-surface-400 hover:bg-amber-100 hover:text-amber-700 transition-colors"
             >
               <ExternalLink className="h-4 w-4" />

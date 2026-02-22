@@ -87,7 +87,7 @@ export default function Home() {
     setError(null);
     try {
       const result = await processUrl(url);
-      if (result && (result as any).duplicate) {
+      if (result?.duplicate) {
         setInfo("This link is already in your memory vault!");
       }
       await fetchAll(); // Refresh everything

@@ -82,6 +82,7 @@ export default function Header({
               {searchQuery && (
                 <button
                   onClick={() => onSearch("")}
+                  aria-label="Clear search"
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-400 hover:text-surface-600"
                 >
                   <X className="h-4 w-4" />
@@ -112,6 +113,7 @@ export default function Header({
                 </button>
                 <button
                   onClick={() => { setShowUrlInput(false); setUrlInput(""); }}
+                  aria-label="Cancel"
                   className="text-surface-400 hover:text-surface-600"
                 >
                   <X className="h-4 w-4" />
