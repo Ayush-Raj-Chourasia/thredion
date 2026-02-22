@@ -42,7 +42,13 @@ KEYWORD_MAP: dict[str, list[str]] = {
     "Science": ["science", "research", "experiment", "physics", "chemistry",
                 "biology", "space", "quantum", "dna", "climate", "evolution"],
     "Music": ["music", "song", "beat", "musician", "guitar", "piano",
-              "producer", "album", "concert", "melody", "rhythm", "rap"],
+              "producer", "album", "concert", "melody", "rhythm", "rap",
+              "singer", "lyrics", "playlist", "spotify", "soundcloud", "dj",
+              "remix", "hip hop", "pop", "rock", "never gonna give", "official video"],
+    "Entertainment": ["movie", "film", "tv", "show", "series", "netflix",
+                      "anime", "drama", "comedy", "trailer", "streaming",
+                      "celebrity", "meme", "funny", "viral", "tiktok",
+                      "game", "gaming", "esports", "twitch", "podcast"],
     "Art": ["art", "painting", "sculpture", "gallery", "artist", "canvas",
             "draw", "sketch", "portrait", "abstract", "illustration"],
     "Fashion": ["fashion", "style", "outfit", "clothing", "trend", "wear",
@@ -57,6 +63,14 @@ KEYWORD_MAP: dict[str, list[str]] = {
                 "saving", "income", "wealth", "trading", "portfolio"],
     "Motivation": ["motivation", "inspire", "success", "mindset", "hustle",
                    "discipline", "goal", "productive", "habit", "grind"],
+    "Sports": ["sport", "football", "basketball", "cricket", "soccer", "tennis",
+               "match", "championship", "league", "athlete", "score", "team"],
+    "Lifestyle": ["lifestyle", "routine", "morning", "aesthetic", "vlog",
+                  "daily", "life", "home", "interior", "minimalist", "tips"],
+    "DIY": ["diy", "craft", "handmade", "tutorial", "build", "project",
+            "woodwork", "repair", "homemade", "maker", "repurpose"],
+    "Photography": ["photo", "photography", "camera", "lens", "portrait",
+                    "landscape", "editing", "lightroom", "composition", "shot"],
 }
 
 
@@ -137,11 +151,20 @@ def _classify_with_keywords(text: str) -> ClassificationResult:
     else:
         category = "Uncategorized"
 
-    # Generate simple summary
-    sentences = re.split(r'[.!?]+', text)
-    summary = sentences[0].strip()[:200] if sentences else text[:200]
-    if not summary:
-        summary = "Saved content"
+    # Generate smart summary
+    clean_text = re.sub(r'https?://\S+', '', text).strip()
+    sentences = [s.strip() for s in re.split(r'[.!?\n]+', clean_text) if s.strip()]
+    if sentences:
+        # Take first meaningful sentence, append category context
+        first = sentences[0][:180]
+        if len(sentences) > 1:
+            summary = f"{first}. {sentences[1][:80]}".strip()
+        else:
+            summary = first
+        if category != "Uncategorized":
+            summary = f"[{category}] {summary}"
+    else:
+        summary = f"Saved {category.lower()} content" if category != "Uncategorized" else "Saved content"
 
     # Extract tags from text
     words = re.findall(r'#(\w+)', text)

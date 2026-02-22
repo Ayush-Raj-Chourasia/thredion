@@ -58,6 +58,8 @@ def extract_from_url(url: str) -> ExtractedContent:
         "instagram": _extract_instagram,
         "twitter": _extract_twitter,
         "youtube": _extract_youtube,
+        "reddit": _extract_reddit,
+        "tiktok": _extract_tiktok,
         "article": _extract_article,
     }
 
@@ -233,3 +235,64 @@ def _extract_article(url: str) -> ExtractedContent:
     except Exception as e:
         logger.error(f"Article extraction failed: {e}")
         return _extract_meta_tags(url, "article")
+
+
+# ── Reddit ────────────────────────────────────────────────────
+
+def _extract_reddit(url: str) -> ExtractedContent:
+    """Extract content from a Reddit post URL."""
+    try:
+        json_url = url.rstrip("/") + ".json"
+        resp = requests.get(json_url, headers={**HEADERS, "Accept": "application/json"}, timeout=10)
+        if resp.status_code == 200:
+            data = resp.json()
+            if isinstance(data, list) and len(data) > 0:
+                post = data[0]["data"]["children"][0]["data"]
+                title = post.get("title", "Reddit Post")
+                selftext = post.get("selftext", "")[:1500]
+                subreddit = post.get("subreddit_name_prefixed", "")
+                thumbnail = post.get("thumbnail", "")
+                if thumbnail in ("self", "default", "nsfw", "spoiler", ""):
+                    thumbnail = post.get("url_overridden_by_dest", "")
+                    if not thumbnail.endswith((".jpg", ".png", ".gif", ".webp")):
+                        thumbnail = ""
+                content = f"{subreddit} — {title}"
+                if selftext:
+                    content += f"\n{selftext}"
+                return ExtractedContent(
+                    platform="reddit",
+                    title=title[:512],
+                    content=content[:2000],
+                    thumbnail_url=thumbnail,
+                    url=url,
+                )
+    except Exception:
+        pass
+    return _extract_meta_tags(url, "reddit")
+
+
+# ── TikTok ────────────────────────────────────────────────────
+
+def _extract_tiktok(url: str) -> ExtractedContent:
+    """Extract content from a TikTok video URL using oEmbed."""
+    try:
+        oembed_url = f"https://www.tiktok.com/oembed?url={url}"
+        resp = requests.get(oembed_url, headers=HEADERS, timeout=10)
+        if resp.status_code == 200:
+            data = resp.json()
+            title = data.get("title", "TikTok Video")
+            author = data.get("author_name", "")
+            thumbnail = data.get("thumbnail_url", "")
+            content = title
+            if author:
+                content = f"By @{author}: {title}"
+            return ExtractedContent(
+                platform="tiktok",
+                title=title[:512],
+                content=content[:2000],
+                thumbnail_url=thumbnail,
+                url=url,
+            )
+    except Exception:
+        pass
+    return _extract_meta_tags(url, "tiktok")

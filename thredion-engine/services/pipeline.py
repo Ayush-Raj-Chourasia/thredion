@@ -25,6 +25,33 @@ def process_url(url: str, user_phone: str, db: Session) -> dict:
     Full cognitive pipeline: URL → extract → embed → classify → graph → score → resurface.
     Returns a dict with all results for the WhatsApp reply and API response.
     """
+    # ── Step 0: Duplicate check ──────────────────────────────
+    normalized_url = url.rstrip("/").split("?")[0] if "youtube" not in url.lower() else url.rstrip("/")
+    existing = db.query(Memory).filter(Memory.url == url).first()
+    if not existing:
+        # Also check the normalized version
+        existing = db.query(Memory).filter(Memory.url == normalized_url).first()
+    if existing:
+        logger.info(f"[Pipeline] Duplicate URL detected — memory #{existing.id}")
+        import json as _json
+        return {
+            "memory_id": existing.id,
+            "url": existing.url,
+            "platform": existing.platform,
+            "title": existing.title,
+            "summary": existing.summary,
+            "category": existing.category,
+            "tags": _json.loads(existing.tags) if existing.tags else [],
+            "topic_graph": _json.loads(existing.topic_graph) if existing.topic_graph else [],
+            "importance_score": existing.importance_score or 0,
+            "importance_reasons": _json.loads(existing.importance_reasons) if existing.importance_reasons else [],
+            "connections": [],
+            "resurfaced": [],
+            "thumbnail_url": existing.thumbnail_url or "",
+            "duplicate": True,
+            "message": "This link already exists in your memory vault!",
+        }
+
     # ── Step 1: Extract content from the URL ─────────────────
     logger.info(f"[Pipeline] Extracting content from {url}")
     extracted = extract_from_url(url)

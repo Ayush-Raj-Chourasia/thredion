@@ -5,6 +5,7 @@ Endpoints for the cognitive dashboard and manual interactions.
 
 import json
 import logging
+import re
 
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
@@ -78,19 +79,34 @@ def create_memory(
     db: Session = Depends(get_db),
 ):
     """Manually add a new memory via URL."""
-    result = process_url(url, user_phone, db)
-    return result
+    url = url.strip()
+    if not re.match(r'^https?://', url):
+        raise HTTPException(status_code=400, detail="Invalid URL — must start with http:// or https://")
+    try:
+        result = process_url(url, user_phone, db)
+        return result
+    except Exception as e:
+        logger.error(f"Memory creation failed for {url}: {e}")
+        raise HTTPException(status_code=500, detail=f"Creation failed: {str(e)}")
 
 
 @router.delete("/memories/{memory_id}")
 def delete_memory(memory_id: int, db: Session = Depends(get_db)):
-    """Delete a memory."""
+    """Delete a memory and all its related connections/resurfaced entries."""
     memory = db.query(Memory).filter(Memory.id == memory_id).first()
     if not memory:
         raise HTTPException(status_code=404, detail="Memory not found")
+    # Delete related connections (both directions)
+    db.query(Connection).filter(
+        (Connection.source_id == memory_id) | (Connection.target_id == memory_id)
+    ).delete(synchronize_session=False)
+    # Delete related resurfaced entries
+    db.query(ResurfacedMemory).filter(
+        (ResurfacedMemory.memory_id == memory_id) | (ResurfacedMemory.triggered_by_id == memory_id)
+    ).delete(synchronize_session=False)
     db.delete(memory)
     db.commit()
-    return {"detail": "Memory deleted"}
+    return {"detail": "Memory deleted", "id": memory_id}
 
 
 # ── Process Endpoint ──────────────────────────────────────────
@@ -103,8 +119,15 @@ def process_endpoint(
     db: Session = Depends(get_db),
 ):
     """Process a URL through the full cognitive pipeline (for testing)."""
-    result = process_url(url, user_phone, db)
-    return result
+    url = url.strip()
+    if not re.match(r'^https?://', url):
+        raise HTTPException(status_code=400, detail="Invalid URL — must start with http:// or https://")
+    try:
+        result = process_url(url, user_phone, db)
+        return result
+    except Exception as e:
+        logger.error(f"Pipeline error for {url}: {e}")
+        raise HTTPException(status_code=500, detail=f"Processing failed: {str(e)}")
 
 
 # ── Knowledge Graph ───────────────────────────────────────────
