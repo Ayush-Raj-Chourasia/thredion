@@ -7,6 +7,11 @@
 :root {
   --color-bg: #ffffff;
   --color-fg: #212529;
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
 }
 
 * {
@@ -15,8 +20,6 @@
 
 body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  background-color: #f8f9fa;
-  color: var(--color-fg);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -36,9 +39,19 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #adb5bd;
 }
+html.dark ::-webkit-scrollbar-thumb {
+  background: #4b5563;
+}
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
 
 /* Selection */
 ::selection {
   background: #bac8ff;
   color: #212529;
+}
+html.dark ::selection {
+  background: #4c6ef5;
+  color: #ffffff;
 }

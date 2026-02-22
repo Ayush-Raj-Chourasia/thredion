@@ -22,8 +22,8 @@ export default function CategoryFilter({
         className={cn(
           "rounded-full border px-3 py-1 text-xs font-medium transition-all",
           selected === ""
-            ? "border-brand-400 bg-brand-50 text-brand-700"
-            : "border-surface-200 bg-white text-surface-600 hover:border-surface-300"
+            ? "border-brand-400 bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400 dark:border-brand-600"
+            : "border-surface-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-surface-600 dark:text-gray-400 hover:border-surface-400 dark:hover:border-gray-600"
         )}
       >
         All
@@ -36,7 +36,7 @@ export default function CategoryFilter({
             "rounded-full border px-3 py-1 text-xs font-medium transition-all",
             selected === category
               ? categoryColor(category)
-              : "border-surface-200 bg-white text-surface-600 hover:border-surface-300"
+              : "border-surface-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-surface-600 dark:text-gray-400 hover:border-surface-400 dark:hover:border-gray-600"
           )}
         >
           {category}{" "}

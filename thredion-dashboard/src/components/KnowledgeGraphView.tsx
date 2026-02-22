@@ -5,8 +5,10 @@ import { Network, Loader2 } from "lucide-react";
 import { cn, categoryDotColor } from "@/lib/utils";
 import type { KnowledgeGraph } from "@/lib/types";
 import { getGraph } from "@/lib/api";
+import { useTheme } from "@/components/ThemeProvider";
 
 export default function KnowledgeGraphView({ refreshKey }: { refreshKey?: number }) {
+  const { theme } = useTheme();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [graph, setGraph] = useState<KnowledgeGraph | null>(null);
   const [loading, setLoading] = useState(true);
@@ -100,8 +102,8 @@ export default function KnowledgeGraphView({ refreshKey }: { refreshKey?: number
     }
 
     // Draw
-    drawGraph(canvas, graph, positions, hoveredNode);
-  }, [graph, hoveredNode]);
+    drawGraph(canvas, graph, positions, hoveredNode, theme === "dark");
+  }, [graph, hoveredNode, theme]);
 
   // Handle canvas resize
   useEffect(() => {
@@ -114,7 +116,7 @@ export default function KnowledgeGraphView({ refreshKey }: { refreshKey?: number
       canvas.width = parent.clientWidth;
       canvas.height = Math.max(400, parent.clientHeight);
       if (graph) {
-        drawGraph(canvas, graph, positionsRef.current, hoveredNode);
+        drawGraph(canvas, graph, positionsRef.current, hoveredNode, theme === "dark");
       }
     };
 
@@ -151,10 +153,10 @@ export default function KnowledgeGraphView({ refreshKey }: { refreshKey?: number
 
   if (!graph || graph.nodes.length === 0) {
     return (
-      <div className="rounded-2xl border border-dashed border-surface-300 bg-surface-50 p-10 text-center">
-        <Network className="mx-auto mb-3 h-10 w-10 text-surface-400" />
-        <p className="text-sm font-medium text-surface-600">Knowledge graph is empty</p>
-        <p className="mt-1 text-xs text-surface-400">
+      <div className="rounded-2xl border border-dashed border-surface-300 dark:border-gray-700 bg-surface-50 dark:bg-gray-900 p-10 text-center">
+        <Network className="mx-auto mb-3 h-10 w-10 text-surface-400 dark:text-gray-500" />
+        <p className="text-sm font-medium text-surface-600 dark:text-gray-400">Knowledge graph is empty</p>
+        <p className="mt-1 text-xs text-surface-400 dark:text-gray-500">
           Save at least 2 related memories to see connections.
         </p>
       </div>
@@ -168,13 +170,13 @@ export default function KnowledgeGraphView({ refreshKey }: { refreshKey?: number
     <div className="space-y-3 animate-fade-in">
       <div className="flex items-center gap-2">
         <Network className="h-5 w-5 text-violet-500" />
-        <h2 className="text-base font-semibold text-surface-900">Knowledge Graph</h2>
-        <span className="text-xs text-surface-500">
+        <h2 className="text-base font-semibold text-surface-900 dark:text-white">Knowledge Graph</h2>
+        <span className="text-xs text-surface-500 dark:text-gray-400">
           {graph.nodes.length} nodes · {graph.edges.length} edges
         </span>
       </div>
 
-      <div className="relative rounded-2xl border border-surface-200 bg-white overflow-hidden">
+      <div className="relative rounded-2xl border border-surface-300 dark:border-gray-700/50 bg-white dark:bg-gray-900 overflow-hidden">
         <canvas
           ref={canvasRef}
           width={800}
@@ -214,7 +216,7 @@ export default function KnowledgeGraphView({ refreshKey }: { refreshKey?: number
               className="h-3 w-3 rounded-full"
               style={{ backgroundColor: categoryDotColor(cat) }}
             />
-            <span className="text-[11px] text-surface-600">{cat}</span>
+            <span className="text-[11px] text-surface-600 dark:text-gray-400">{cat}</span>
           </div>
         ))}
       </div>
@@ -228,7 +230,8 @@ function drawGraph(
   canvas: HTMLCanvasElement,
   graph: KnowledgeGraph,
   positions: Map<number, { x: number; y: number; vx: number; vy: number }>,
-  hoveredNode: number | null
+  hoveredNode: number | null,
+  isDark: boolean = false
 ) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
@@ -247,7 +250,7 @@ function drawGraph(
     ctx.beginPath();
     ctx.moveTo(a.x, a.y);
     ctx.lineTo(b.x, b.y);
-    ctx.strokeStyle = isHighlighted ? "rgba(76, 110, 245, 0.5)" : "rgba(206, 212, 218, 0.5)";
+    ctx.strokeStyle = isHighlighted ? "rgba(76, 110, 245, 0.5)" : isDark ? "rgba(75, 85, 99, 0.5)" : "rgba(206, 212, 218, 0.5)";
     ctx.lineWidth = isHighlighted ? 2.5 : 1;
     ctx.stroke();
 
@@ -255,7 +258,7 @@ function drawGraph(
     if (isHighlighted) {
       const mx = (a.x + b.x) / 2;
       const my = (a.y + b.y) / 2;
-      ctx.fillStyle = "#4c6ef5";
+      ctx.fillStyle = isDark ? "#93c5fd" : "#4c6ef5";
       ctx.font = "10px Inter, sans-serif";
       ctx.textAlign = "center";
       ctx.fillText(`${Math.round(edge.weight * 100)}%`, mx, my - 5);
@@ -284,12 +287,12 @@ function drawGraph(
     ctx.arc(pos.x, pos.y, radius, 0, Math.PI * 2);
     ctx.fillStyle = color;
     ctx.fill();
-    ctx.strokeStyle = isHovered ? "#fff" : color;
+    ctx.strokeStyle = isHovered ? (isDark ? "#1f2937" : "#fff") : color;
     ctx.lineWidth = isHovered ? 3 : 1;
     ctx.stroke();
 
     // Label
-    ctx.fillStyle = "#343a40";
+    ctx.fillStyle = isDark ? "#e5e7eb" : "#343a40";
     ctx.font = `${isHovered ? "bold " : ""}11px Inter, sans-serif`;
     ctx.textAlign = "center";
     const label =

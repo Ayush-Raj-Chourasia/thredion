@@ -108,11 +108,11 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-surface-50 flex flex-col items-center justify-center px-4">
+    <div className="min-h-screen bg-surface-50 dark:bg-gray-950 flex flex-col items-center justify-center px-4">
       {/* Background decoration */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-brand-100 rounded-full blur-3xl opacity-30" />
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-100 rounded-full blur-3xl opacity-30" />
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-brand-100 dark:bg-brand-900/20 rounded-full blur-3xl opacity-30" />
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-100 dark:bg-purple-900/20 rounded-full blur-3xl opacity-30" />
       </div>
 
       <div className="relative z-10 w-full max-w-md">
@@ -121,31 +121,31 @@ export default function LoginPage() {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 shadow-lg shadow-brand-200 mb-4">
             <Brain className="h-8 w-8 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-surface-900">Thredion</h1>
-          <p className="text-sm text-surface-500 mt-1">AI Cognitive Memory Engine</p>
+          <h1 className="text-2xl font-bold text-surface-900 dark:text-white">Thredion</h1>
+          <p className="text-sm text-surface-500 dark:text-gray-400 mt-1">AI Cognitive Memory Engine</p>
         </div>
 
         {/* Card */}
-        <div className="bg-white rounded-2xl shadow-xl shadow-surface-200/50 border border-surface-100 p-8">
+        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl shadow-surface-200/50 dark:shadow-gray-950/50 border border-surface-200 dark:border-gray-700/50 p-8">
           {step === "phone" ? (
             <>
               <div className="flex items-center gap-3 mb-6">
-                <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-green-50">
-                  <MessageCircle className="h-5 w-5 text-green-600" />
+                <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-green-50 dark:bg-green-900/30">
+                  <MessageCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-semibold text-surface-900">Login via WhatsApp</h2>
-                  <p className="text-xs text-surface-500">We&apos;ll send you a verification code</p>
+                  <h2 className="text-lg font-semibold text-surface-900 dark:text-white">Login via WhatsApp</h2>
+                  <p className="text-xs text-surface-500 dark:text-gray-400">We&apos;ll send you a verification code</p>
                 </div>
               </div>
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-surface-700 mb-1.5">
+                  <label className="block text-sm font-medium text-surface-700 dark:text-gray-300 mb-1.5">
                     Phone Number
                   </label>
                   <div className="relative">
-                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-surface-400" />
+                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-surface-400 dark:text-gray-500" />
                     <input
                       type="tel"
                       value={phone}
@@ -155,17 +155,17 @@ export default function LoginPage() {
                       }}
                       onKeyDown={(e) => e.key === "Enter" && handleSendOTP()}
                       placeholder="+91 12345 67890"
-                      className="w-full pl-10 pr-4 py-3 rounded-xl border border-surface-200 bg-surface-50 text-surface-900 placeholder:text-surface-400 focus:outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100 transition-all"
+                      className="w-full pl-10 pr-4 py-3 rounded-xl border border-surface-300 dark:border-gray-600 bg-surface-50 dark:bg-gray-800 text-surface-900 dark:text-white placeholder:text-surface-400 dark:placeholder:text-gray-500 focus:outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100 dark:focus:ring-brand-800 transition-all"
                       autoFocus
                     />
                   </div>
-                  <p className="text-xs text-surface-400 mt-1.5">
+                  <p className="text-xs text-surface-400 dark:text-gray-500 mt-1.5">
                     Use the same number you send WhatsApp links from
                   </p>
                 </div>
 
                 {error && (
-                  <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
+                  <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 rounded-lg px-3 py-2">{error}</p>
                 )}
 
                 <button
@@ -187,13 +187,13 @@ export default function LoginPage() {
           ) : (
             <>
               <div className="flex items-center gap-3 mb-6">
-                <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-brand-50">
-                  <ShieldCheck className="h-5 w-5 text-brand-600" />
+                <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-brand-50 dark:bg-brand-900/30">
+                  <ShieldCheck className="h-5 w-5 text-brand-600 dark:text-brand-400" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-semibold text-surface-900">Enter Verification Code</h2>
-                  <p className="text-xs text-surface-500">
-                    Sent to <span className="font-medium text-surface-700">{phone}</span> on WhatsApp
+                  <h2 className="text-lg font-semibold text-surface-900 dark:text-white">Enter Verification Code</h2>
+                  <p className="text-xs text-surface-500 dark:text-gray-400">
+                    Sent to <span className="font-medium text-surface-700 dark:text-gray-300">{phone}</span> on WhatsApp
                   </p>
                 </div>
               </div>
@@ -212,13 +212,13 @@ export default function LoginPage() {
                       aria-label={`OTP digit ${i + 1}`}
                       onChange={(e) => handleOtpChange(i, e.target.value)}
                       onKeyDown={(e) => handleOtpKeyDown(i, e)}
-                      className="w-12 h-14 text-center text-xl font-bold rounded-xl border border-surface-200 bg-surface-50 text-surface-900 focus:outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100 transition-all"
+                      className="w-12 h-14 text-center text-xl font-bold rounded-xl border border-surface-300 dark:border-gray-600 bg-surface-50 dark:bg-gray-800 text-surface-900 dark:text-white focus:outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100 dark:focus:ring-brand-800 transition-all"
                     />
                   ))}
                 </div>
 
                 {error && (
-                  <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
+                  <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 rounded-lg px-3 py-2">{error}</p>
                 )}
 
                 <button
@@ -243,19 +243,19 @@ export default function LoginPage() {
                       setOtp(["", "", "", "", "", ""]);
                       setError("");
                     }}
-                    className="text-surface-500 hover:text-surface-700 transition-colors"
+                    className="text-surface-500 dark:text-gray-400 hover:text-surface-700 dark:hover:text-gray-300 transition-colors"
                   >
                     ← Change number
                   </button>
                   {countdown > 0 ? (
-                    <span className="text-surface-400">
+                    <span className="text-surface-400 dark:text-gray-500">
                       Resend in {Math.floor(countdown / 60)}:{String(countdown % 60).padStart(2, "0")}
                     </span>
                   ) : (
                     <button
                       onClick={handleSendOTP}
                       disabled={loading}
-                      className="text-brand-600 hover:text-brand-700 font-medium transition-colors"
+                      className="text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 font-medium transition-colors"
                     >
                       Resend code
                     </button>
@@ -267,7 +267,7 @@ export default function LoginPage() {
         </div>
 
         {/* Footer hint */}
-        <p className="text-center text-xs text-surface-400 mt-6">
+        <p className="text-center text-xs text-surface-400 dark:text-gray-500 mt-6">
           Your phone number is used to keep your memories private and separate from other users.
         </p>
       </div>

@@ -30,7 +30,7 @@ export default function Home() {
   // Show login page if not authenticated
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-surface-50 flex items-center justify-center">
+      <div className="min-h-screen bg-surface-50 dark:bg-gray-950 flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-brand-500" />
       </div>
     );
@@ -190,7 +190,7 @@ function Dashboard({
 
   // ── Render ────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-surface-50">
+    <div className="min-h-screen bg-surface-50 dark:bg-gray-950">
       <Header
         searchQuery={searchQuery}
         onSearch={setSearchQuery}
@@ -205,12 +205,12 @@ function Dashboard({
       <main className="mx-auto max-w-7xl px-4 sm:px-6 py-6 space-y-6">
         {/* Error banner */}
         {error && (
-          <div className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 animate-fade-in">
-            <AlertCircle className="h-5 w-5 shrink-0 text-red-500" />
+          <div className="flex items-center gap-3 rounded-xl border border-red-200 dark:border-red-800/50 bg-red-50 dark:bg-red-950/30 p-4 text-sm text-red-700 dark:text-red-300 animate-fade-in">
+            <AlertCircle className="h-5 w-5 shrink-0 text-red-500 dark:text-red-400" />
             <p className="flex-1">{error}</p>
             <button
               onClick={() => setError(null)}
-              className="text-red-400 hover:text-red-600 text-xs font-medium"
+              className="text-red-400 hover:text-red-600 dark:hover:text-red-300 text-xs font-medium"
             >
               Dismiss
             </button>
@@ -219,12 +219,12 @@ function Dashboard({
 
         {/* Info banner */}
         {info && (
-          <div className="flex items-center gap-3 rounded-xl border border-brand-200 bg-brand-50 p-4 text-sm text-brand-700 animate-fade-in">
-            <Brain className="h-5 w-5 shrink-0 text-brand-500" />
+          <div className="flex items-center gap-3 rounded-xl border border-brand-200 dark:border-brand-800/50 bg-brand-50 dark:bg-brand-950/30 p-4 text-sm text-brand-700 dark:text-brand-300 animate-fade-in">
+            <Brain className="h-5 w-5 shrink-0 text-brand-500 dark:text-brand-400" />
             <p className="flex-1">{info}</p>
             <button
               onClick={() => setInfo(null)}
-              className="text-brand-400 hover:text-brand-600 text-xs font-medium"
+              className="text-brand-400 hover:text-brand-600 dark:hover:text-brand-300 text-xs font-medium"
             >
               Dismiss
             </button>
@@ -233,8 +233,8 @@ function Dashboard({
 
         {/* Processing indicator */}
         {isProcessing && (
-          <div className="flex items-center gap-3 rounded-xl border border-brand-200 bg-brand-50 p-4 text-sm text-brand-700 animate-pulse-soft">
-            <Loader2 className="h-5 w-5 animate-spin text-brand-500" />
+          <div className="flex items-center gap-3 rounded-xl border border-brand-200 dark:border-brand-800/50 bg-brand-50 dark:bg-brand-950/30 p-4 text-sm text-brand-700 dark:text-brand-300 animate-pulse-soft">
+            <Loader2 className="h-5 w-5 animate-spin text-brand-500 dark:text-brand-400" />
             <p>
               Processing URL through cognitive pipeline — extracting, embedding,
               classifying, connecting…
@@ -250,12 +250,12 @@ function Dashboard({
             {/* Sort + Category filters */}
             <div className="flex flex-col sm:flex-row sm:items-center gap-3">
               <div className="flex items-center gap-2">
-                <label className="text-xs text-surface-500 font-medium">Sort:</label>
+                <label className="text-xs text-surface-500 dark:text-gray-400 font-medium">Sort:</label>
                 <select
                   value={sortMode}
                   aria-label="Sort memories"
                   onChange={(e) => setSortMode(e.target.value as any)}
-                  className="rounded-lg border border-surface-200 bg-white px-2.5 py-1.5 text-xs text-surface-700 focus:border-brand-400 focus:outline-none"
+                  className="rounded-lg border border-surface-300 bg-white dark:bg-gray-800 dark:border-gray-600 dark:text-gray-300 px-2.5 py-1.5 text-xs text-surface-700 focus:border-brand-400 focus:outline-none"
                 >
                   <option value="newest">Newest first</option>
                   <option value="oldest">Oldest first</option>
@@ -278,13 +278,13 @@ function Dashboard({
               </div>
             ) : memories.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 text-center animate-fade-in">
-                <Brain className="h-16 w-16 text-surface-300 mb-4" />
-                <h3 className="text-lg font-semibold text-surface-700 mb-1">
+                <Brain className="h-16 w-16 text-surface-300 dark:text-gray-600 mb-4" />
+                <h3 className="text-lg font-semibold text-surface-700 dark:text-gray-300 mb-1">
                   {debouncedSearch || selectedCategory
                     ? "No matches found"
                     : "No memories yet"}
                 </h3>
-                <p className="text-sm text-surface-500 max-w-md">
+                <p className="text-sm text-surface-500 dark:text-gray-500 max-w-md">
                   {debouncedSearch || selectedCategory
                     ? "Try widening your search or clearing the filter."
                     : "Send a link via WhatsApp or use the \"Add Memory\" button above to start building your cognitive memory."}
@@ -319,10 +319,10 @@ function Dashboard({
       />
 
       {/* Footer */}
-      <footer className="mt-12 border-t border-surface-200 bg-white py-6">
+      <footer className="mt-12 border-t border-surface-300 dark:border-gray-700/50 bg-white dark:bg-gray-900 py-6">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 text-center">
-          <p className="text-xs text-surface-500">
-            <span className="font-semibold text-surface-700">Thredion</span> — AI
+          <p className="text-xs text-surface-500 dark:text-gray-500">
+            <span className="font-semibold text-surface-700 dark:text-gray-300">Thredion</span> — AI
             Cognitive Memory Engine · Built for{" "}
             <span className="font-medium">Hack The Thread</span>
           </p>

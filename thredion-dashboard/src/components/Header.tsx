@@ -12,8 +12,11 @@ import {
   X,
   LogOut,
   Phone,
+  Moon,
+  Sun,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useTheme } from "@/components/ThemeProvider";
 
 interface HeaderProps {
   searchQuery: string;
@@ -43,6 +46,7 @@ export default function Header({
   userPhone,
   onLogout,
 }: HeaderProps) {
+  const { theme, toggleTheme } = useTheme();
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [urlInput, setUrlInput] = useState("");
 
@@ -55,20 +59,20 @@ export default function Header({
   };
 
   return (
-    <header className="sticky top-0 z-40 border-b border-surface-200 bg-white/80 backdrop-blur-xl">
+    <header className="sticky top-0 z-40 border-b border-surface-300 bg-white/80 dark:bg-gray-900/80 dark:border-gray-700/50 backdrop-blur-xl">
       {/* Top bar */}
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
         <div className="flex h-16 items-center justify-between gap-4">
           {/* Logo */}
           <div className="flex items-center gap-2.5 shrink-0">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-600 shadow-md shadow-brand-200">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-600 shadow-md shadow-brand-200 dark:shadow-brand-900/50">
               <Brain className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h1 className="text-lg font-bold text-surface-900 tracking-tight leading-none">
+              <h1 className="text-lg font-bold text-surface-900 dark:text-white tracking-tight leading-none">
                 Thredion
               </h1>
-              <p className="text-[10px] text-surface-500 font-medium tracking-widest uppercase leading-none mt-0.5">
+              <p className="text-[10px] text-surface-500 dark:text-gray-400 font-medium tracking-widest uppercase leading-none mt-0.5">
                 Cognitive Memory
               </p>
             </div>
@@ -77,13 +81,13 @@ export default function Header({
           {/* Search */}
           <div className="flex-1 max-w-md hidden sm:block">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-surface-400" />
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-surface-400 dark:text-gray-500" />
               <input
                 type="text"
                 placeholder="Search memories, tags, topics…"
                 value={searchQuery}
                 onChange={(e) => onSearch(e.target.value)}
-                className="w-full rounded-xl border border-surface-200 bg-surface-50 py-2 pl-10 pr-4 text-sm text-surface-800 placeholder-surface-400 transition-all focus:border-brand-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-100"
+                className="w-full rounded-xl border border-surface-300 bg-surface-50 dark:bg-gray-800 dark:border-gray-600 dark:text-white dark:placeholder-gray-500 py-2 pl-10 pr-4 text-sm text-surface-800 placeholder-surface-400 transition-all focus:border-brand-400 focus:bg-white dark:focus:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-100 dark:focus:ring-brand-800"
               />
               {searchQuery && (
                 <button
@@ -101,7 +105,7 @@ export default function Header({
           <div className="flex items-center gap-2 shrink-0">
             {/* User indicator */}
             {userPhone && (
-              <div className="hidden sm:flex items-center gap-1.5 text-xs text-surface-500 bg-surface-50 px-2.5 py-1.5 rounded-lg border border-surface-200">
+              <div className="hidden sm:flex items-center gap-1.5 text-xs text-surface-500 dark:text-gray-400 bg-surface-50 dark:bg-gray-800 px-2.5 py-1.5 rounded-lg border border-surface-300 dark:border-gray-700">
                 <Phone className="h-3 w-3" />
                 <span>{userPhone}</span>
               </div>
@@ -115,13 +119,13 @@ export default function Header({
                   value={urlInput}
                   onChange={(e) => setUrlInput(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleSubmitUrl()}
-                  className="w-56 rounded-lg border border-brand-300 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-200"
+                  className="w-56 rounded-lg border border-brand-300 bg-white dark:bg-gray-800 dark:border-brand-700 dark:text-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-200"
                   autoFocus
                 />
                 <button
                   onClick={handleSubmitUrl}
                   disabled={isProcessing || !urlInput.trim()}
-                  className="rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50 transition-colors"
+                  className="rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50 transition-colors shadow-sm"
                 >
                   {isProcessing ? "Processing…" : "Save"}
                 </button>
@@ -136,19 +140,28 @@ export default function Header({
             ) : (
               <button
                 onClick={() => setShowUrlInput(true)}
-                className="flex items-center gap-1.5 rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-md shadow-brand-200 hover:bg-brand-700 transition-all active:scale-95"
+                className="flex items-center gap-1.5 rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-md shadow-brand-200 dark:shadow-brand-900/50 hover:bg-brand-700 transition-all active:scale-95"
               >
                 <Plus className="h-4 w-4" />
                 <span className="hidden sm:inline">Add Memory</span>
               </button>
             )}
 
+            {/* Theme toggle */}
+            <button
+              onClick={toggleTheme}
+              title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              className="flex items-center justify-center w-9 h-9 rounded-xl text-surface-400 dark:text-gray-400 hover:bg-surface-100 dark:hover:bg-gray-800 hover:text-surface-700 dark:hover:text-gray-200 transition-all"
+            >
+              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </button>
+
             {/* Logout */}
             {onLogout && (
               <button
                 onClick={onLogout}
                 title="Log out"
-                className="flex items-center justify-center w-9 h-9 rounded-xl text-surface-400 hover:text-red-600 hover:bg-red-50 transition-all"
+                className="flex items-center justify-center w-9 h-9 rounded-xl text-surface-400 dark:text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/50 transition-all"
               >
                 <LogOut className="h-4 w-4" />
               </button>
@@ -170,8 +183,8 @@ export default function Header({
                 className={cn(
                   "flex items-center gap-1.5 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-medium transition-colors",
                   active
-                    ? "border-brand-600 text-brand-700"
-                    : "border-transparent text-surface-500 hover:border-surface-300 hover:text-surface-700"
+                    ? "border-brand-600 text-brand-700 dark:border-brand-400 dark:text-brand-400"
+                    : "border-transparent text-surface-500 dark:text-gray-400 hover:border-surface-300 dark:hover:border-gray-600 hover:text-surface-700 dark:hover:text-gray-300"
                 )}
               >
                 <Icon className="h-4 w-4" />
@@ -185,13 +198,13 @@ export default function Header({
       {/* Mobile search */}
       <div className="sm:hidden px-4 pb-3 pt-1">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-surface-400" />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-surface-400 dark:text-gray-500" />
           <input
             type="text"
             placeholder="Search…"
             value={searchQuery}
             onChange={(e) => onSearch(e.target.value)}
-            className="w-full rounded-xl border border-surface-200 bg-surface-50 py-2 pl-10 pr-4 text-sm placeholder-surface-400 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-100"
+            className="w-full rounded-xl border border-surface-300 bg-surface-50 dark:bg-gray-800 dark:border-gray-600 dark:text-white dark:placeholder-gray-500 py-2 pl-10 pr-4 text-sm placeholder-surface-400 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-100 dark:focus:ring-brand-800"
           />
         </div>
       </div>

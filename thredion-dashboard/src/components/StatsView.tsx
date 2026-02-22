@@ -31,10 +31,10 @@ export default function StatsView({ refreshKey }: { refreshKey?: number }) {
 
   if (!stats) {
     return (
-      <div className="rounded-2xl border border-dashed border-surface-300 bg-surface-50 p-10 text-center">
-        <BarChart3 className="mx-auto mb-3 h-10 w-10 text-surface-400" />
-        <p className="text-sm font-medium text-surface-600">No stats available</p>
-        <p className="mt-1 text-xs text-surface-400">Start saving memories to see analytics.</p>
+      <div className="rounded-2xl border border-dashed border-surface-300 dark:border-gray-700 bg-surface-50 dark:bg-gray-900 p-10 text-center">
+        <BarChart3 className="mx-auto mb-3 h-10 w-10 text-surface-400 dark:text-gray-500" />
+        <p className="text-sm font-medium text-surface-600 dark:text-gray-400">No stats available</p>
+        <p className="mt-1 text-xs text-surface-400 dark:text-gray-500">Start saving memories to see analytics.</p>
       </div>
     );
   }
@@ -45,7 +45,7 @@ export default function StatsView({ refreshKey }: { refreshKey?: number }) {
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center gap-2">
         <BarChart3 className="h-5 w-5 text-brand-500" />
-        <h2 className="text-base font-semibold text-surface-900">Analytics</h2>
+        <h2 className="text-base font-semibold text-surface-900 dark:text-white">Analytics</h2>
       </div>
 
       {/* Summary cards */}
@@ -57,10 +57,10 @@ export default function StatsView({ refreshKey }: { refreshKey?: number }) {
       </div>
 
       {/* Category distribution */}
-      <div className="rounded-2xl border border-surface-200 bg-white p-5">
-        <h3 className="text-sm font-semibold text-surface-800 mb-4">Category Distribution</h3>
+      <div className="rounded-2xl border border-surface-300 dark:border-gray-700/50 bg-white dark:bg-gray-900 p-5">
+        <h3 className="text-sm font-semibold text-surface-800 dark:text-gray-200 mb-4">Category Distribution</h3>
         {categories.length === 0 ? (
-          <p className="text-sm text-surface-500">No categories yet.</p>
+          <p className="text-sm text-surface-500 dark:text-gray-400">No categories yet.</p>
         ) : (
           <div className="space-y-3">
             {categories.map(({ category, count }) => (
@@ -73,7 +73,7 @@ export default function StatsView({ refreshKey }: { refreshKey?: number }) {
                 >
                   {category}
                 </span>
-                <div className="flex-1 h-5 rounded-full bg-surface-100 overflow-hidden">
+                <div className="flex-1 h-5 rounded-full bg-surface-100 dark:bg-gray-800 overflow-hidden">
                   <div
                     className="h-full rounded-full transition-all duration-700"
                     style={{
@@ -82,7 +82,7 @@ export default function StatsView({ refreshKey }: { refreshKey?: number }) {
                     }}
                   />
                 </div>
-                <span className="text-sm font-semibold text-surface-700 w-8 text-right">
+                <span className="text-sm font-semibold text-surface-700 dark:text-gray-300 w-8 text-right">
                   {count}
                 </span>
               </div>
@@ -92,21 +92,21 @@ export default function StatsView({ refreshKey }: { refreshKey?: number }) {
       </div>
 
       {/* Top insights */}
-      <div className="rounded-2xl border border-surface-200 bg-white p-5">
-        <h3 className="text-sm font-semibold text-surface-800 mb-3">Quick Insights</h3>
-        <ul className="space-y-2 text-sm text-surface-600">
+      <div className="rounded-2xl border border-surface-300 dark:border-gray-700/50 bg-white dark:bg-gray-900 p-5">
+        <h3 className="text-sm font-semibold text-surface-800 dark:text-gray-200 mb-3">Quick Insights</h3>
+        <ul className="space-y-2 text-sm text-surface-600 dark:text-gray-400">
           <li>
-            <span className="font-medium text-surface-800">Top category:</span>{" "}
+            <span className="font-medium text-surface-800 dark:text-gray-200">Top category:</span>{" "}
             {stats.top_category}
           </li>
           <li>
-            <span className="font-medium text-surface-800">Knowledge density:</span>{" "}
+            <span className="font-medium text-surface-800 dark:text-gray-200">Knowledge density:</span>{" "}
             {stats.total_connections > 0 && stats.total_memories > 0
               ? `${(stats.total_connections / stats.total_memories).toFixed(1)} connections per memory`
               : "No connections yet"}
           </li>
           <li>
-            <span className="font-medium text-surface-800">Resurfacing rate:</span>{" "}
+            <span className="font-medium text-surface-800 dark:text-gray-200">Resurfacing rate:</span>{" "}
             {stats.total_resurfaced > 0 && stats.total_memories > 0
               ? `${((stats.total_resurfaced / stats.total_memories) * 100).toFixed(0)}% of memories resurfaced`
               : "No resurfacing yet"}
@@ -119,9 +119,9 @@ export default function StatsView({ refreshKey }: { refreshKey?: number }) {
 
 function SummaryCard({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-xl border border-surface-200 bg-surface-50 p-4 text-center">
-      <span className="text-2xl font-bold text-surface-900">{value}</span>
-      <p className="mt-1 text-[11px] text-surface-500 uppercase tracking-wider font-medium">
+    <div className="rounded-xl border border-surface-300 dark:border-gray-700/50 bg-surface-50 dark:bg-gray-800 p-4 text-center">
+      <span className="text-2xl font-bold text-surface-900 dark:text-white">{value}</span>
+      <p className="mt-1 text-[11px] text-surface-500 dark:text-gray-400 uppercase tracking-wider font-medium">
         {label}
       </p>
     </div>
