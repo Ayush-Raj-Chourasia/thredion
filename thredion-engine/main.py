@@ -43,13 +43,16 @@ async def lifespan(application: FastAPI):
     logger.info(f"Twilio configured: {'Yes' if settings.TWILIO_ACCOUNT_SID else 'No'}")
     logger.info(f"Frontend URL: {settings.FRONTEND_URL}")
     logger.info(f"Docs: http://localhost:{settings.PORT}/docs")
-    # Pre-warm the embedding model so the first request isn't slow
-    try:
-        from services.embeddings import generate_embedding
-        generate_embedding("warmup")
-        logger.info("Embedding model pre-warmed ✓")
-    except Exception as e:
-        logger.warning(f"Embedding pre-warm failed (will lazy-load later): {e}")
+    # Pre-warm the embedding model in a background thread so the server starts fast
+    import threading
+    def _prewarm():
+        try:
+            from services.embeddings import generate_embedding
+            generate_embedding("warmup")
+            logger.info("Embedding model pre-warmed ✓")
+        except Exception as e:
+            logger.warning(f"Embedding pre-warm failed (will lazy-load later): {e}")
+    threading.Thread(target=_prewarm, daemon=True).start()
     logger.info("=" * 60)
     yield
     logger.info("Thredion Engine shutting down.")
