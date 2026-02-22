@@ -25,12 +25,27 @@ def process_url(url: str, user_phone: str, db: Session) -> dict:
     Full cognitive pipeline: URL → extract → embed → classify → graph → score → resurface.
     Returns a dict with all results for the WhatsApp reply and API response.
     """
-    # ── Step 0: Duplicate check ──────────────────────────────
-    normalized_url = url.rstrip("/").split("?")[0] if "youtube" not in url.lower() else url.rstrip("/")
-    existing = db.query(Memory).filter(Memory.url == url).first()
-    if not existing:
-        # Also check the normalized version
-        existing = db.query(Memory).filter(Memory.url == normalized_url).first()
+    # ── Step 0: Validate & Duplicate check ───────────────────
+    url = url.strip()
+    if not url:
+        raise ValueError("URL cannot be empty")
+    
+    # Normalize: strip trailing slash, but preserve query params for YouTube/search URLs
+    normalized_url = url.rstrip("/")
+    # For non-video platforms, also try stripping query params
+    stripped_url = normalized_url.split("?")[0] if not any(
+        p in url.lower() for p in ["youtube.com", "youtu.be", "twitter.com", "x.com"]
+    ) else normalized_url
+    
+    existing = (
+        db.query(Memory)
+        .filter(
+            (Memory.url == url)
+            | (Memory.url == normalized_url)
+            | (Memory.url == stripped_url)
+        )
+        .first()
+    )
     if existing:
         logger.info(f"[Pipeline] Duplicate URL detected — memory #{existing.id}")
         import json as _json

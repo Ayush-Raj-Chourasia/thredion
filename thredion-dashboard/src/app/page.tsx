@@ -28,6 +28,7 @@ export default function Home() {
   const [resurfaced, setResurfaced] = useState<ResurfacedMemory[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
   const [activeTab, setActiveTab] = useState("memories");
@@ -85,7 +86,10 @@ export default function Home() {
     setIsProcessing(true);
     setError(null);
     try {
-      await processUrl(url);
+      const result = await processUrl(url);
+      if (result && (result as any).duplicate) {
+        setInfo("This link is already in your memory vault!");
+      }
       await fetchAll(); // Refresh everything
     } catch (err: any) {
       setError(err.message || "Failed to process URL");
@@ -124,6 +128,20 @@ export default function Home() {
             <button
               onClick={() => setError(null)}
               className="text-red-400 hover:text-red-600 text-xs font-medium"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+
+        {/* Info banner */}
+        {info && (
+          <div className="flex items-center gap-3 rounded-xl border border-brand-200 bg-brand-50 p-4 text-sm text-brand-700 animate-fade-in">
+            <Brain className="h-5 w-5 shrink-0 text-brand-500" />
+            <p className="flex-1">{info}</p>
+            <button
+              onClick={() => setInfo(null)}
+              className="text-brand-400 hover:text-brand-600 text-xs font-medium"
             >
               Dismiss
             </button>

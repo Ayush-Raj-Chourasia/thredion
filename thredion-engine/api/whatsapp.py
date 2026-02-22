@@ -55,7 +55,10 @@ async def whatsapp_webhook(
     for url in urls[:3]:  # Max 3 URLs per message
         try:
             result = process_url(url, user_phone, db)
-            replies.append(_build_success_reply(result))
+            if result.get("duplicate"):
+                replies.append(_build_duplicate_reply(result))
+            else:
+                replies.append(_build_success_reply(result))
         except Exception as e:
             logger.error(f"[WhatsApp] Failed to process {url}: {e}")
             replies.append(f"⚠️ Couldn't process: {url}\nError: {str(e)[:100]}")
@@ -68,6 +71,20 @@ async def whatsapp_webhook(
 async def whatsapp_verify():
     """Health check / verification endpoint for Twilio."""
     return PlainTextResponse("Thredion WhatsApp webhook is active ✓")
+
+
+def _build_duplicate_reply(result: dict) -> str:
+    """Build a reply when the URL was already saved."""
+    summary = result.get("summary", "")
+    category = result.get("category", "")
+    score = result.get("importance_score", 0)
+    return (
+        "🔁 *Already in your memory vault!*\n\n"
+        f"📝 *Summary:* {summary}\n"
+        f"🏷️ *Category:* {category}\n"
+        f"⭐ *Importance:* {score}/100\n\n"
+        "This link was previously saved. No duplicate created."
+    )
 
 
 def _build_success_reply(result: dict) -> str:

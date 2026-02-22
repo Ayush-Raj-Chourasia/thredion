@@ -6,6 +6,7 @@ FastAPI entry point for the AI Cognitive Memory Engine.
 import logging
 import sys
 import os
+from contextlib import asynccontextmanager
 
 # Add the project root to path so imports work correctly
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -27,6 +28,25 @@ logging.basicConfig(
 )
 logger = logging.getLogger("thredion")
 
+# ── Lifespan ──────────────────────────────────────────────────
+
+@asynccontextmanager
+async def lifespan(application: FastAPI):
+    """Startup and shutdown events."""
+    logger.info("=" * 60)
+    logger.info("  THREDION ENGINE — AI Cognitive Memory Engine")
+    logger.info("=" * 60)
+    init_db()
+    logger.info("Database initialized.")
+    logger.info(f"Embedding model: {settings.EMBEDDING_MODEL}")
+    logger.info(f"OpenAI configured: {'Yes' if settings.OPENAI_API_KEY else 'No (using fallback)'}")
+    logger.info(f"Twilio configured: {'Yes' if settings.TWILIO_ACCOUNT_SID else 'No'}")
+    logger.info(f"Frontend URL: {settings.FRONTEND_URL}")
+    logger.info(f"Docs: http://localhost:{settings.PORT}/docs")
+    logger.info("=" * 60)
+    yield
+    logger.info("Thredion Engine shutting down.")
+
 # ── FastAPI App ───────────────────────────────────────────────
 
 app = FastAPI(
@@ -38,6 +58,7 @@ app = FastAPI(
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
 # ── CORS ──────────────────────────────────────────────────────
@@ -60,24 +81,6 @@ app.add_middleware(
 
 app.include_router(api_router)
 app.include_router(whatsapp_router)
-
-# ── Startup ───────────────────────────────────────────────────
-
-
-@app.on_event("startup")
-def startup():
-    logger.info("=" * 60)
-    logger.info("  THREDION ENGINE — AI Cognitive Memory Engine")
-    logger.info("=" * 60)
-    init_db()
-    logger.info("Database initialized.")
-    logger.info(f"Embedding model: {settings.EMBEDDING_MODEL}")
-    logger.info(f"OpenAI configured: {'Yes' if settings.OPENAI_API_KEY else 'No (using fallback)'}")
-    logger.info(f"Twilio configured: {'Yes' if settings.TWILIO_ACCOUNT_SID else 'No'}")
-    logger.info(f"Frontend URL: {settings.FRONTEND_URL}")
-    logger.info(f"Docs: http://localhost:{settings.PORT}/docs")
-    logger.info("=" * 60)
-
 
 # ── Root Endpoint ─────────────────────────────────────────────
 
