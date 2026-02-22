@@ -33,12 +33,15 @@ async def whatsapp_webhook(
     Receives incoming messages, extracts URLs, processes them, and replies.
     """
     # Parse form data from Twilio
-    form_data = await request.form()
-    body = form_data.get("Body", "")
-    from_number = form_data.get("From", "unknown")
+    try:
+        form_data = await request.form()
+    except Exception:
+        return _twiml_response(_build_help_reply())
+    body = form_data.get("Body", "") or ""
+    from_number = form_data.get("From", "unknown") or "unknown"
     
     # Clean phone number
-    user_phone = str(from_number).replace("whatsapp:", "").strip()
+    user_phone = str(from_number).replace("whatsapp:", "").strip() or "unknown"
     
     logger.info(f"[WhatsApp] Message from {user_phone}: {body}")
 
