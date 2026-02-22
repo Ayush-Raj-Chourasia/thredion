@@ -20,13 +20,19 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 import db.database as _db_module
 from db.database import Base, get_db
 from db.models import Memory, Connection, ResurfacedMemory
 
-# Shared test engine (in-memory)
-_test_engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+# Shared test engine (in-memory, StaticPool ensures single connection so all
+# sessions see the same database — critical for in-memory SQLite)
+_test_engine = create_engine(
+    "sqlite:///:memory:",
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+)
 _TestSessionLocal = sessionmaker(bind=_test_engine)
 
 

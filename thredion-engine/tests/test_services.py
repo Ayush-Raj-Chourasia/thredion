@@ -34,21 +34,18 @@ class TestKeywordClassifier:
     def test_fitness_keywords(self):
         result = _classify_with_keywords(
             "Best home workout routine for building muscle and strength training",
-            "https://example.com",
         )
         assert result.category == "Fitness"
 
     def test_coding_keywords(self):
         result = _classify_with_keywords(
             "Python programming tutorial for beginners learning to code algorithms",
-            "https://example.com",
         )
         assert result.category == "Coding"
 
     def test_food_keywords(self):
         result = _classify_with_keywords(
             "Easy pasta recipe with homemade sauce for dinner cooking at home",
-            "https://example.com",
         )
         assert result.category == "Food"
 
@@ -56,7 +53,6 @@ class TestKeywordClassifier:
         """When no keywords match strongly, it should still return a valid category."""
         result = _classify_with_keywords(
             "xyzzy plugh abracadabra random gibberish text",
-            "https://example.com",
         )
         # Should be a valid category string, not crash
         assert isinstance(result.category, str)
@@ -65,7 +61,6 @@ class TestKeywordClassifier:
     def test_summary_generated(self):
         result = _classify_with_keywords(
             "Machine learning models are transforming how we understand data science.",
-            "https://example.com",
         )
         assert isinstance(result.summary, str)
         assert len(result.summary) > 0
@@ -73,7 +68,6 @@ class TestKeywordClassifier:
     def test_tags_generated(self):
         result = _classify_with_keywords(
             "#python #machinelearning Deep learning tutorial for beginners",
-            "https://example.com",
         )
         assert isinstance(result.tags, list)
         assert len(result.tags) > 0
@@ -81,7 +75,6 @@ class TestKeywordClassifier:
     def test_topic_graph_generated(self):
         result = _classify_with_keywords(
             "JavaScript frontend development React components tutorial",
-            "https://example.com",
         )
         assert isinstance(result.topic_graph, list)
         assert len(result.topic_graph) > 0
