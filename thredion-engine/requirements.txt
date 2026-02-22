@@ -1,0 +1,25 @@
+# Thredion Engine — Dependencies
+# AI Cognitive Memory Engine Backend
+
+# ── Web Framework ─────────────────────────────────────────
+fastapi==0.115.0
+uvicorn[standard]==0.30.0
+python-multipart==0.0.9
+
+# ── Database ──────────────────────────────────────────────
+sqlalchemy==2.0.35
+
+# ── AI / NLP ──────────────────────────────────────────────
+sentence-transformers==3.0.1
+numpy==1.26.4
+openai==1.50.0
+
+# ── Content Extraction ───────────────────────────────────
+requests==2.32.3
+beautifulsoup4==4.12.3
+
+# ── Config ────────────────────────────────────────────────
+python-dotenv==1.0.1
+
+# ── WhatsApp (Twilio) ────────────────────────────────────
+twilio==9.3.0
