@@ -1,0 +1,11 @@
+# ── Thredion Engine ─────────────────────────────────
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+venv/
+.venv/
+.env
+*.db
+*.sqlite
+.cache/
