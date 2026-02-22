@@ -13,6 +13,7 @@ import {
   Youtube,
   FileText,
   Link,
+  Play,
 } from "lucide-react";
 import { useState } from "react";
 import { cn, categoryColor, importanceLevel, timeAgo, truncate, platformName } from "@/lib/utils";
@@ -30,10 +31,47 @@ const PlatformIcons: Record<string, React.ElementType> = {
   article: FileText,
 };
 
+/** Extract a YouTube embed URL from the original link. */
+function getYouTubeEmbedUrl(url: string): string | null {
+  try {
+    const u = new URL(url);
+    let videoId: string | null = null;
+    if (u.hostname.includes("youtu.be")) {
+      videoId = u.pathname.slice(1);
+    } else if (u.hostname.includes("youtube.com")) {
+      videoId = u.searchParams.get("v");
+      if (!videoId) {
+        const m = u.pathname.match(/\/(?:embed|shorts)\/([^/?]+)/);
+        if (m) videoId = m[1];
+      }
+    }
+    return videoId ? `https://www.youtube.com/embed/${videoId}` : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Extract an Instagram embed URL from the original link. */
+function getInstagramEmbedUrl(url: string): string | null {
+  try {
+    const m = url.match(/instagram\.com\/(?:p|reel|reels)\/([A-Za-z0-9_-]+)/);
+    return m ? `https://www.instagram.com/p/${m[1]}/embed` : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function MemoryCard({ memory, onDelete }: MemoryCardProps) {
   const [expanded, setExpanded] = useState(false);
+  const [showEmbed, setShowEmbed] = useState(false);
   const imp = importanceLevel(memory.importance_score);
   const PlatformIcon = PlatformIcons[memory.platform] || Link;
+
+  // Derive embed URL for supported platforms
+  const embedUrl =
+    memory.platform === "youtube" ? getYouTubeEmbedUrl(memory.url) :
+    memory.platform === "instagram" ? getInstagramEmbedUrl(memory.url) :
+    null;
 
   return (
     <div className="group relative rounded-2xl border border-surface-200 bg-white p-5 shadow-sm transition-all hover:shadow-md hover:border-surface-300 animate-fade-in">
@@ -71,9 +109,19 @@ export default function MemoryCard({ memory, onDelete }: MemoryCardProps) {
         </div>
       </div>
 
-      {/* Thumbnail */}
-      {memory.thumbnail_url && (
+      {/* Embed / Thumbnail */}
+      {showEmbed && embedUrl ? (
         <div className="mb-3 overflow-hidden rounded-xl border border-surface-100">
+          <iframe
+            src={embedUrl}
+            title={memory.title || "Embedded content"}
+            className="w-full aspect-video"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+          />
+        </div>
+      ) : memory.thumbnail_url ? (
+        <div className="relative mb-3 overflow-hidden rounded-xl border border-surface-100 cursor-pointer" onClick={() => embedUrl && setShowEmbed(true)}>
           <img
             src={memory.thumbnail_url}
             alt={memory.title || "thumbnail"}
@@ -82,8 +130,15 @@ export default function MemoryCard({ memory, onDelete }: MemoryCardProps) {
               (e.target as HTMLImageElement).style.display = "none";
             }}
           />
+          {embedUrl && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/90 shadow-lg">
+                <Play className="h-5 w-5 text-brand-600 ml-0.5" />
+              </div>
+            </div>
+          )}
         </div>
-      )}
+      ) : null}
 
       {/* Title */}
       <h3 className="text-base font-semibold text-surface-900 leading-snug mb-1.5">
