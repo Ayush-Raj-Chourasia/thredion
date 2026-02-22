@@ -161,7 +161,7 @@ def get_recent_resurfaced(db: Session, limit: int = 20, user_phone: str = "") ->
                 "triggered_by_title": triggered.title or triggered.summary[:50],
                 "reason": r.reason,
                 "similarity_score": r.similarity_score,
-                "created_at": r.created_at.isoformat() if r.created_at else "",
+                "created_at": (r.created_at.isoformat() + "Z") if r.created_at else "",
             })
 
     return results

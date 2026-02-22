@@ -326,5 +326,5 @@ def _serialize_memory(memory: Memory) -> dict:
         ),
         "thumbnail_url": memory.thumbnail_url,
         "user_phone": memory.user_phone,
-        "created_at": memory.created_at.isoformat() if memory.created_at else "",
+        "created_at": (memory.created_at.isoformat() + "Z") if memory.created_at else "",
     }
