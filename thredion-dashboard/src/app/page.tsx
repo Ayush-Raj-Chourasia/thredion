@@ -170,6 +170,7 @@ export default function Home() {
                 <label className="text-xs text-surface-500 font-medium">Sort:</label>
                 <select
                   value={sortMode}
+                  aria-label="Sort memories"
                   onChange={(e) => setSortMode(e.target.value as any)}
                   className="rounded-lg border border-surface-200 bg-white px-2.5 py-1.5 text-xs text-surface-700 focus:border-brand-400 focus:outline-none"
                 >

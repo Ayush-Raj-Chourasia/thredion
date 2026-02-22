@@ -25,6 +25,7 @@ export default function InspireModal({ memory, onClose }: InspireModalProps) {
       >
         <button
           onClick={onClose}
+          aria-label="Close modal"
           className="absolute right-4 top-4 rounded-lg p-1 text-surface-400 hover:bg-surface-100 hover:text-surface-600 transition-colors"
         >
           <X className="h-5 w-5" />
