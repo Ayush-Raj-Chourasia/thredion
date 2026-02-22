@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from db.database import get_db
 from services.pipeline import process_url
+from api.routes import notify_change
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/whatsapp", tags=["whatsapp"])
@@ -63,6 +64,7 @@ async def whatsapp_webhook(
                 replies.append(_build_duplicate_reply(result))
             else:
                 replies.append(_build_success_reply(result))
+                notify_change("memory_added", str(result.get("memory_id", "")))
             # Capture thumbnail from the first result that has one
             if not thumbnail_url and result.get("thumbnail_url"):
                 thumbnail_url = result["thumbnail_url"]

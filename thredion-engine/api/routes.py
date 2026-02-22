@@ -3,11 +3,13 @@ Thredion Engine — REST API Routes
 Endpoints for the cognitive dashboard and manual interactions.
 """
 
+import asyncio
 import json
 import logging
 import re
 
 from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
@@ -19,6 +21,69 @@ from services.resurfacing import get_recent_resurfaced
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["memories"])
+
+# ── SSE Event Bus ─────────────────────────────────────────────
+# Simple in-process pub/sub for server-sent events
+
+_sse_subscribers: list[asyncio.Queue] = []
+
+
+def notify_change(event_type: str = "update", data: str = ""):
+    """Broadcast a change event to all SSE subscribers."""
+    payload = json.dumps({"type": event_type, "data": data})
+    dead = []
+    for q in _sse_subscribers:
+        try:
+            q.put_nowait(payload)
+        except asyncio.QueueFull:
+            dead.append(q)
+    for q in dead:
+        _sse_subscribers.remove(q)
+
+
+async def _sse_generator(queue: asyncio.Queue):
+    """Yield SSE-formatted events from the queue."""
+    try:
+        while True:
+            payload = await asyncio.wait_for(queue.get(), timeout=30)
+            yield f"data: {payload}\n\n"
+    except asyncio.TimeoutError:
+        # Send a keep-alive comment to prevent connection timeout
+        yield ": keepalive\n\n"
+    except asyncio.CancelledError:
+        return
+
+
+async def _sse_stream(queue: asyncio.Queue):
+    """Infinite SSE stream with keep-alive."""
+    try:
+        while True:
+            try:
+                payload = await asyncio.wait_for(queue.get(), timeout=25)
+                yield f"data: {payload}\n\n"
+            except asyncio.TimeoutError:
+                yield ": keepalive\n\n"
+    except asyncio.CancelledError:
+        return
+    finally:
+        if queue in _sse_subscribers:
+            _sse_subscribers.remove(queue)
+
+
+@router.get("/events")
+async def sse_events():
+    """Server-Sent Events endpoint for real-time dashboard updates."""
+    queue: asyncio.Queue = asyncio.Queue(maxsize=50)
+    _sse_subscribers.append(queue)
+    return StreamingResponse(
+        _sse_stream(queue),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 # ── Memories ──────────────────────────────────────────────────
@@ -84,6 +149,7 @@ def create_memory(
         raise HTTPException(status_code=400, detail="Invalid URL — must start with http:// or https://")
     try:
         result = process_url(url, user_phone, db)
+        notify_change("memory_added", str(result.get("memory_id", "")))
         return result
     except Exception as e:
         logger.error(f"Memory creation failed for {url}: {e}")
@@ -106,6 +172,7 @@ def delete_memory(memory_id: int, db: Session = Depends(get_db)):
     ).delete(synchronize_session=False)
     db.delete(memory)
     db.commit()
+    notify_change("memory_deleted", str(memory_id))
     return {"detail": "Memory deleted", "id": memory_id}
 
 
@@ -124,6 +191,7 @@ def process_endpoint(
         raise HTTPException(status_code=400, detail="Invalid URL — must start with http:// or https://")
     try:
         result = process_url(url, user_phone, db)
+        notify_change("memory_added", str(result.get("memory_id", "")))
         return result
     except Exception as e:
         logger.error(f"Pipeline error for {url}: {e}")

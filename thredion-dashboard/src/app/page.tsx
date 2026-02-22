@@ -82,14 +82,37 @@ export default function Home() {
     fetchAll();
   }, [fetchAll]);
 
-  // ── Auto-refresh polling (every 10 seconds) ────────
+  // ── Real-time SSE updates (replaces polling) ────────
   useEffect(() => {
-    const interval = setInterval(() => {
-      fetchAll();
-      setRefreshKey((k) => k + 1);
-    }, 10_000);
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    let es: EventSource | null = null;
+    let reconnectTimer: NodeJS.Timeout | null = null;
 
-    // Refresh immediately when tab becomes visible again
+    const connect = () => {
+      es = new EventSource(`${apiBase}/api/events`);
+
+      es.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data);
+          if (payload.type === "memory_added" || payload.type === "memory_deleted") {
+            fetchAll();
+            setRefreshKey((k) => k + 1);
+          }
+        } catch {
+          // ignore malformed events
+        }
+      };
+
+      es.onerror = () => {
+        es?.close();
+        // Reconnect after 5 seconds on error
+        reconnectTimer = setTimeout(connect, 5000);
+      };
+    };
+
+    connect();
+
+    // Also refresh when tab becomes visible again
     const onVisibility = () => {
       if (document.visibilityState === "visible") {
         fetchAll();
@@ -99,7 +122,8 @@ export default function Home() {
     document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
-      clearInterval(interval);
+      es?.close();
+      if (reconnectTimer) clearTimeout(reconnectTimer);
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [fetchAll]);
