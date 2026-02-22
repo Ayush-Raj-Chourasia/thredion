@@ -6,7 +6,7 @@ import { cn, categoryDotColor } from "@/lib/utils";
 import type { KnowledgeGraph } from "@/lib/types";
 import { getGraph } from "@/lib/api";
 
-export default function KnowledgeGraphView() {
+export default function KnowledgeGraphView({ refreshKey }: { refreshKey?: number }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [graph, setGraph] = useState<KnowledgeGraph | null>(null);
   const [loading, setLoading] = useState(true);
@@ -22,7 +22,7 @@ export default function KnowledgeGraphView() {
       .then(setGraph)
       .catch(() => setGraph(null))
       .finally(() => setLoading(false));
-  }, []);
+  }, [refreshKey]);
 
   // Initialize positions when graph loads
   useEffect(() => {

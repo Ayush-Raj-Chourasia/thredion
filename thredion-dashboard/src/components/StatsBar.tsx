@@ -16,9 +16,10 @@ import { getStats, getRandomMemory } from "@/lib/api";
 
 interface StatsBarProps {
   onInspire?: (memory: Memory) => void;
+  refreshKey?: number;
 }
 
-export default function StatsBar({ onInspire }: StatsBarProps) {
+export default function StatsBar({ onInspire, refreshKey }: StatsBarProps) {
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [inspiring, setInspiring] = useState(false);
@@ -28,7 +29,7 @@ export default function StatsBar({ onInspire }: StatsBarProps) {
       .then(setStats)
       .catch(() => setStats(null))
       .finally(() => setLoading(false));
-  }, []);
+  }, [refreshKey]);
 
   const handleInspire = useCallback(async () => {
     setInspiring(true);

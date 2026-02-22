@@ -35,6 +35,7 @@ export default function Home() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [inspireMemory, setInspireMemory] = useState<Memory | null>(null);
   const [sortMode, setSortMode] = useState<"newest" | "oldest" | "importance">("newest");
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Debounce search
   const searchTimeout = useRef<NodeJS.Timeout | null>(null);
@@ -81,6 +82,28 @@ export default function Home() {
     fetchAll();
   }, [fetchAll]);
 
+  // ── Auto-refresh polling (every 10 seconds) ────────
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchAll();
+      setRefreshKey((k) => k + 1);
+    }, 10_000);
+
+    // Refresh immediately when tab becomes visible again
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        fetchAll();
+        setRefreshKey((k) => k + 1);
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [fetchAll]);
+
   // ── Handlers ──────────────────────────────────────────
   const handleAddUrl = async (url: string) => {
     setIsProcessing(true);
@@ -91,6 +114,7 @@ export default function Home() {
         setInfo("This link is already in your memory vault!");
       }
       await fetchAll(); // Refresh everything
+      setRefreshKey((k) => k + 1); // Refresh child components too
     } catch (err: any) {
       setError(err.message || "Failed to process URL");
     } finally {
@@ -102,6 +126,7 @@ export default function Home() {
     try {
       await apiDeleteMemory(id);
       setMemories((prev) => prev.filter((m) => m.id !== id));
+      setRefreshKey((k) => k + 1);
     } catch (err: any) {
       setError(err.message || "Failed to delete memory");
     }
@@ -162,7 +187,7 @@ export default function Home() {
         {/* ── Tab: Memories ───────────────────────────── */}
         {activeTab === "memories" && (
           <>
-            <StatsBar onInspire={setInspireMemory} />
+            <StatsBar onInspire={setInspireMemory} refreshKey={refreshKey} />
 
             {/* Sort + Category filters */}
             <div className="flex flex-col sm:flex-row sm:items-center gap-3">
@@ -223,10 +248,10 @@ export default function Home() {
         )}
 
         {/* ── Tab: Knowledge Graph ────────────────────── */}
-        {activeTab === "graph" && <KnowledgeGraphView />}
+        {activeTab === "graph" && <KnowledgeGraphView refreshKey={refreshKey} />}
 
         {/* ── Tab: Stats ──────────────────────────────── */}
-        {activeTab === "stats" && <StatsView />}
+        {activeTab === "stats" && <StatsView refreshKey={refreshKey} />}
       </main>
 
       {/* Random Inspiration Modal */}

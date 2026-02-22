@@ -6,7 +6,7 @@ import { cn, categoryColor, categoryDotColor } from "@/lib/utils";
 import type { Stats, CategoryCount } from "@/lib/types";
 import { getStats, getCategories } from "@/lib/api";
 
-export default function StatsView() {
+export default function StatsView({ refreshKey }: { refreshKey?: number }) {
   const [stats, setStats] = useState<Stats | null>(null);
   const [categories, setCategories] = useState<CategoryCount[]>([]);
   const [loading, setLoading] = useState(true);
@@ -19,7 +19,7 @@ export default function StatsView() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [refreshKey]);
 
   if (loading) {
     return (
