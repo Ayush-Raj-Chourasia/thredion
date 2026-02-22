@@ -59,6 +59,21 @@ Not just cards — a full cognitive interface with:
 - Interactive Knowledge Graph
 - Analytics & Category Distribution
 - Random Inspiration button
+- **Embedded Video/Post Players** — YouTube and Instagram content plays inline
+
+---
+
+## ✨ Wow Factor Features
+
+| Feature | Description |
+|---------|-------------|
+| **Inline Embeds** | YouTube videos and Instagram posts play directly inside the dashboard |
+| **Random Inspiration** | Rediscover a forgotten memory at the click of a button |
+| **Knowledge Graph** | Interactive force-directed graph connecting related memories |
+| **Smart Resurfacing** | Automatically recalls forgotten content when you save something related |
+| **Explainable AI** | Every importance score comes with transparent reasoning |
+| **6 Platforms** | Instagram, Twitter/X, YouTube, Reddit, TikTok, and any article URL |
+| **3-Tier Fallback** | Embedding: sentence-transformers → TF-IDF → hash; Classification: GPT → keywords |
 
 ---
 
@@ -194,10 +209,12 @@ Dashboard runs at `http://localhost:3000`
 
 ## Supported Platforms
 
-- **Instagram** — Reels, Posts (via oEmbed + meta tags)
+- **Instagram** — Reels, Posts (via oEmbed + meta tags) — **inline embed player**
 - **Twitter / X** — Tweets, Threads (via oEmbed)
-- **YouTube** — Videos (via oEmbed)
-- **Blog / Articles** — Any URL (via content extraction)
+- **YouTube** — Videos, Shorts (via oEmbed) — **inline embed player**
+- **Reddit** — Posts (via JSON API)
+- **TikTok** — Videos (via oEmbed)
+- **Blog / Articles** — Any URL (via content extraction + BeautifulSoup)
 
 ---
 
@@ -207,16 +224,30 @@ Dashboard runs at `http://localhost:3000`
 - No OpenAI key → keyword-based classification fallback
 - sentence-transformers not installed → TF-IDF fallback → hash-based fallback
 - Empty database → graceful empty states in dashboard
+- Duplicate URL → detected with URL normalization, user notified instead of re-saving
+- Concurrent duplicate submissions → thread-safe locking prevents race conditions
 - Duplicate connections → prevented at database level
 - Resurfacing cooldown → same memory won't resurface within 7 days
 - WhatsApp message with no URL → help reply sent
 - Multiple URLs in single message → processes up to 3
+- Invalid URL (no http/https) → 400 error with clear message
 - Image load failure → gracefully hidden in dashboard
 - API timeout → retry-safe, idempotent operations
+- Cascade delete → deleting memory removes connections + resurfaced entries
 
 ---
 
 ## Demo Video
+
+> **📹 Record a short walkthrough** showing:
+> 1. Sending a link via the dashboard (or WhatsApp bot)
+> 2. AI auto-categorization and summarization
+> 3. The memory appearing on the dashboard with embedded player
+> 4. Searching / filtering saved memories
+> 5. Knowledge Graph visualization
+> 6. Random Inspiration feature
+>
+> Upload to YouTube/Loom and paste the link below:
 
 [Add your walkthrough video link here]
 
