@@ -4,7 +4,7 @@ Intelligently resurfaces forgotten memories when contextually relevant.
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
@@ -33,7 +33,7 @@ def find_resurfaceable(new_memory: Memory, db: Session) -> list[dict]:
         return []
 
     # Get old memories (at least 3 days old)
-    cutoff = datetime.utcnow() - timedelta(days=3)
+    cutoff = datetime.now(timezone.utc) - timedelta(days=3)
     old_memories = (
         db.query(Memory)
         .filter(Memory.id != new_memory.id)
@@ -61,7 +61,7 @@ def find_resurfaceable(new_memory: Memory, db: Session) -> list[dict]:
             db.query(ResurfacedMemory)
             .filter(ResurfacedMemory.memory_id == memory.id)
             .filter(
-                ResurfacedMemory.created_at > datetime.utcnow() - timedelta(days=7)
+                ResurfacedMemory.created_at > datetime.now(timezone.utc) - timedelta(days=7)
             )
             .first()
         )
@@ -114,7 +114,7 @@ def _build_reason(new_memory: Memory, old_memory: Memory, similarity: float) -> 
 
     # Calculate age
     if old_memory.created_at:
-        age = datetime.utcnow() - old_memory.created_at
+        age = datetime.now(timezone.utc) - old_memory.created_at.replace(tzinfo=timezone.utc)
         days = age.days
         if days > 0:
             reasons.append(f"Saved {days} day{'s' if days != 1 else ''} ago")

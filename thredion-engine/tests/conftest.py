@@ -8,7 +8,7 @@ import json
 import os
 import sys
 import pickle
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import numpy as np
 import pytest
@@ -116,7 +116,7 @@ def make_memory(
         importance_reasons=json.dumps(importance_reasons or ["testing"]),
         thumbnail_url=thumbnail_url,
         user_phone=user_phone,
-        created_at=created_at or datetime.utcnow(),
+        created_at=created_at or datetime.now(timezone.utc),
     )
     db_session.add(m)
     db_session.commit()

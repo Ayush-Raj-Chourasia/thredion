@@ -3,12 +3,17 @@ Thredion Engine — Database Models
 SQLAlchemy ORM models for the cognitive memory engine.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import (
     Column, Integer, String, Float, Text, DateTime, LargeBinary, ForeignKey,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
 from db.database import Base
+
+
+def _utcnow():
+    return datetime.now(timezone.utc)
 
 
 class Memory(Base):
@@ -16,7 +21,7 @@ class Memory(Base):
     __tablename__ = "memories"
 
     id = Column(Integer, primary_key=True, index=True)
-    url = Column(String(2048), nullable=False)
+    url = Column(String(2048), nullable=False, unique=True, index=True)
     platform = Column(String(50), default="unknown")       # instagram, twitter, article
     title = Column(String(512), default="")
     content = Column(Text, default="")                       # original caption / text
@@ -29,7 +34,7 @@ class Memory(Base):
     importance_reasons = Column(Text, default="[]")          # JSON list of reasons
     thumbnail_url = Column(String(2048), default="")
     user_phone = Column(String(50), default="default")
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utcnow)
 
     # Relationships
     connections_out = relationship(
@@ -50,7 +55,11 @@ class Connection(Base):
     source_id = Column(Integer, ForeignKey("memories.id", ondelete="CASCADE"), nullable=False)
     target_id = Column(Integer, ForeignKey("memories.id", ondelete="CASCADE"), nullable=False)
     similarity_score = Column(Float, default=0.0)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("source_id", "target_id", name="uq_connection_pair"),
+    )
 
     source = relationship("Memory", foreign_keys=[source_id], back_populates="connections_out")
     target = relationship("Memory", foreign_keys=[target_id], back_populates="connections_in")
@@ -65,7 +74,7 @@ class ResurfacedMemory(Base):
     triggered_by_id = Column(Integer, ForeignKey("memories.id", ondelete="CASCADE"), nullable=False)
     reason = Column(Text, default="")
     similarity_score = Column(Float, default=0.0)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utcnow)
 
     memory = relationship("Memory", foreign_keys=[memory_id])
     triggered_by = relationship("Memory", foreign_keys=[triggered_by_id])

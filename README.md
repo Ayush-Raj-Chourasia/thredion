@@ -6,6 +6,24 @@ Thredion is not just a link saver — it's a **cognitive layer** that understand
 
 ---
 
+## Dashboard Preview
+
+![Thredion Dashboard](assets/dashboard-preview.png)
+
+---
+
+## System Architecture
+
+![System Architecture — WhatsApp → FastAPI Backend → Next.js Dashboard](assets/architecture-diagram.png)
+
+---
+
+## Demo Video
+
+📹 **Watch the full walkthrough:** [Thredion Demo Video](https://drive.google.com/drive/folders/1H0TDkrnpHb5Y_FyryNmcYag22_wb7W8U?usp=sharing)
+
+---
+
 ## The Problem
 
 We all save hundreds of Instagram reels, tweets, and articles — but never look at them again. They're buried, forgotten, and effectively **lost knowledge**.
@@ -77,7 +95,7 @@ Not just cards — a full cognitive interface with:
 
 ---
 
-## Architecture
+## Architecture (Detail)
 
 ```
 ┌────────────────────────┐
@@ -237,19 +255,17 @@ Dashboard runs at `http://localhost:3000`
 
 ---
 
-## Demo Video
+## Resilience & Fallbacks
 
-> **📹 Record a short walkthrough** showing:
-> 1. Sending a link via the dashboard (or WhatsApp bot)
-> 2. AI auto-categorization and summarization
-> 3. The memory appearing on the dashboard with embedded player
-> 4. Searching / filtering saved memories
-> 5. Knowledge Graph visualization
-> 6. Random Inspiration feature
->
-> Upload to YouTube/Loom and paste the link below:
+Thredion is designed to work **completely offline** with zero API keys:
 
-[Add your walkthrough video link here]
+| Component | Primary | Fallback 1 | Fallback 2 |
+|-----------|---------|------------|------------|
+| **Embeddings** | sentence-transformers (MiniLM-L6-v2) | TF-IDF (sklearn) | Hash-based (MD5) |
+| **Classification** | OpenAI GPT-3.5 | Keyword matching (20 categories) | — |
+| **Extraction** | Platform oEmbed API | HTML content scraping | Meta tag fallback |
+
+This 3-tier architecture ensures the system never crashes — even without internet access or API keys.
 
 ---
 
@@ -257,6 +273,10 @@ Dashboard runs at `http://localhost:3000`
 
 ```
 thredion/
+├── assets/                       # README images
+│   ├── dashboard-preview.png     # Dashboard screenshot
+│   └── architecture-diagram.png  # System architecture diagram
+│
 ├── thredion-engine/              # Python backend
 │   ├── main.py                   # FastAPI app entry point
 │   ├── requirements.txt
@@ -265,20 +285,28 @@ thredion/
 │   │   └── config.py             # Central configuration
 │   ├── db/
 │   │   ├── database.py           # SQLAlchemy setup
-│   │   └── models.py             # ORM models
+│   │   └── models.py             # ORM models (with unique URL constraint)
 │   ├── models/
 │   │   └── schemas.py            # Pydantic schemas
 │   ├── api/
 │   │   ├── routes.py             # REST API endpoints
 │   │   └── whatsapp.py           # Twilio webhook
-│   └── services/
-│       ├── pipeline.py           # Full cognitive pipeline orchestrator
-│       ├── extractor.py          # URL content extraction
-│       ├── embeddings.py         # Vector embedding generation
-│       ├── classifier.py        # AI classification & summarization
-│       ├── knowledge_graph.py    # Graph builder
-│       ├── importance.py         # Explainable importance scoring
-│       └── resurfacing.py        # Smart resurfacing engine
+│   ├── services/
+│   │   ├── pipeline.py           # Full cognitive pipeline orchestrator
+│   │   ├── extractor.py          # URL content extraction
+│   │   ├── embeddings.py         # Vector embedding generation
+│   │   ├── classifier.py         # AI classification & summarization
+│   │   ├── knowledge_graph.py    # Graph builder
+│   │   ├── importance.py         # Explainable importance scoring
+│   │   └── resurfacing.py        # Smart resurfacing engine
+│   └── tests/                    # 93 automated tests
+│       ├── conftest.py           # Shared fixtures (in-memory SQLite)
+│       ├── test_api.py           # API endpoint tests
+│       ├── test_database.py      # Database model tests
+│       ├── test_embeddings.py    # Embedding generation tests
+│       ├── test_pipeline.py      # Cognitive pipeline tests
+│       ├── test_services.py      # Service module tests
+│       └── test_demo_reliability.py  # Demo failure scenario tests
 │
 ├── thredion-dashboard/           # Next.js frontend
 │   ├── src/
@@ -296,15 +324,37 @@ thredion/
 │   │   │   ├── StatsView.tsx
 │   │   │   └── InspireModal.tsx
 │   │   └── lib/
-│   │       ├── api.ts            # API client
+│   │       ├── api.ts            # API client (with timeout & retry)
 │   │       ├── types.ts          # TypeScript types
-│   │       └── utils.ts          # Helpers
+│   │       ├── utils.ts          # Helpers
+│   │       └── __tests__/
+│   │           └── test-plan.ts  # Frontend integration test plan
 │   ├── package.json
 │   ├── tailwind.config.js
 │   └── next.config.js
 │
 └── README.md
 ```
+
+---
+
+## Test Suite
+
+**93 automated tests** covering all critical paths:
+
+```bash
+cd thredion-engine
+python -m pytest tests/ -v
+```
+
+| Test File | Tests | Covers |
+|-----------|-------|--------|
+| `test_api.py` | 23 | All REST endpoints, CRUD, search, filters, error handling |
+| `test_database.py` | 15 | ORM models, relationships, cascade delete, constraints |
+| `test_embeddings.py` | 12 | 3-tier embedding fallback, cosine similarity, edge cases |
+| `test_pipeline.py` | 12 | Full pipeline, duplicate detection, thread safety |
+| `test_services.py` | 19 | Extractor, classifier, knowledge graph, importance, resurfacing |
+| `test_demo_reliability.py` | 12 | Startup resilience, timeout handling, concurrent requests |
 
 ---
 
