@@ -21,26 +21,30 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+import db.database as _db_module
 from db.database import Base, get_db
 from db.models import Memory, Connection, ResurfacedMemory
+
+# Shared test engine (in-memory)
+_test_engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+_TestSessionLocal = sessionmaker(bind=_test_engine)
 
 
 @pytest.fixture()
 def db_session():
-    """Create a fresh in-memory SQLite database for each test."""
-    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
-    Base.metadata.create_all(bind=engine)
-    Session = sessionmaker(bind=engine)
-    session = Session()
+    """Provide a fresh in-memory DB with tables for each test."""
+    Base.metadata.create_all(bind=_test_engine)
+    session = _TestSessionLocal()
     try:
         yield session
     finally:
         session.close()
-        Base.metadata.drop_all(bind=engine)
+        Base.metadata.drop_all(bind=_test_engine)
 
 
 # ---------- FastAPI TestClient ---------- #
 
+from unittest.mock import patch
 from fastapi.testclient import TestClient
 from main import app
 
@@ -55,8 +59,12 @@ def client(db_session):
             pass
 
     app.dependency_overrides[get_db] = _override_get_db
-    with TestClient(app) as c:
-        yield c
+
+    # Patch init_db so the lifespan creates tables on the TEST engine
+    with patch.object(_db_module, "init_db", lambda: Base.metadata.create_all(bind=_test_engine)):
+        with TestClient(app) as c:
+            yield c
+
     app.dependency_overrides.clear()
 
 
