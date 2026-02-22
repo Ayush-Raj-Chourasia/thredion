@@ -32,11 +32,12 @@ def find_resurfaceable(new_memory: Memory, db: Session) -> list[dict]:
     if new_vec is None:
         return []
 
-    # Get old memories (at least 3 days old)
+    # Get old memories (at least 3 days old) belonging to the same user
     cutoff = datetime.now(timezone.utc) - timedelta(days=3)
     old_memories = (
         db.query(Memory)
         .filter(Memory.id != new_memory.id)
+        .filter(Memory.user_phone == new_memory.user_phone)
         .filter(Memory.url != new_memory.url)
         .filter(Memory.embedding.isnot(None))
         .filter(Memory.created_at < cutoff)
@@ -44,10 +45,11 @@ def find_resurfaceable(new_memory: Memory, db: Session) -> list[dict]:
     )
 
     if not old_memories:
-        # For demo: if no old memories, use all other memories
+        # For demo: if no old memories, use all other memories for this user
         old_memories = (
             db.query(Memory)
             .filter(Memory.id != new_memory.id)
+            .filter(Memory.user_phone == new_memory.user_phone)
             .filter(Memory.url != new_memory.url)
             .filter(Memory.embedding.isnot(None))
             .all()
@@ -129,11 +131,15 @@ def _build_reason(new_memory: Memory, old_memory: Memory, similarity: float) -> 
     return " · ".join(reasons)
 
 
-def get_recent_resurfaced(db: Session, limit: int = 20) -> list[dict]:
-    """Get recently resurfaced memories for the dashboard."""
+def get_recent_resurfaced(db: Session, limit: int = 20, user_phone: str = "") -> list[dict]:
+    """Get recently resurfaced memories for the dashboard, scoped to a user."""
+    q = db.query(ResurfacedMemory)
+    if user_phone:
+        # Only resurfaced entries whose memory belongs to this user
+        user_mem_ids = db.query(Memory.id).filter(Memory.user_phone == user_phone).subquery()
+        q = q.filter(ResurfacedMemory.memory_id.in_(user_mem_ids))
     records = (
-        db.query(ResurfacedMemory)
-        .order_by(ResurfacedMemory.created_at.desc())
+        q.order_by(ResurfacedMemory.created_at.desc())
         .limit(limit)
         .all()
     )

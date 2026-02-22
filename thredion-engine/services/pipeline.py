@@ -45,9 +45,10 @@ def process_url(url: str, user_phone: str, db: Session) -> dict:
         existing = (
             db.query(Memory)
             .filter(
+                Memory.user_phone == user_phone,
                 (Memory.url == url)
                 | (Memory.url == normalized_url)
-                | (Memory.url == stripped_url)
+                | (Memory.url == stripped_url),
             )
             .first()
         )

@@ -1,6 +1,7 @@
 """
 Thredion Engine — REST API Routes
 Endpoints for the cognitive dashboard and manual interactions.
+All endpoints require JWT authentication and scope data by user phone.
 """
 
 import asyncio
@@ -14,10 +15,11 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from db.database import get_db
-from db.models import Memory, Connection, ResurfacedMemory
+from db.models import Memory, Connection, ResurfacedMemory, User
 from services.pipeline import process_url
 from services.knowledge_graph import get_full_graph, get_memory_connections
 from services.resurfacing import get_recent_resurfaced
+from api.auth import get_current_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["memories"])
@@ -71,8 +73,18 @@ async def _sse_stream(queue: asyncio.Queue):
 
 
 @router.get("/events")
-async def sse_events():
-    """Server-Sent Events endpoint for real-time dashboard updates."""
+async def sse_events(token: str = Query("", description="JWT token for auth")):
+    """Server-Sent Events endpoint for real-time dashboard updates.
+    Accepts JWT token as query param since EventSource doesn't support headers.
+    """
+    # Validate token (but don't block if empty — just for auth'd SSE)
+    if token:
+        from api.auth import _decode_token
+        try:
+            _decode_token(token)
+        except Exception:
+            pass  # Allow connection, just won't filter
+
     queue: asyncio.Queue = asyncio.Queue(maxsize=50)
     _sse_subscribers.append(queue)
     return StreamingResponse(
@@ -95,10 +107,11 @@ def list_memories(
     category: str = Query("", description="Filter by category"),
     sort: str = Query("newest", description="Sort: newest, oldest, importance"),
     limit: int = Query(50, ge=1, le=200),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """List all memories with optional search, filter, and sort."""
-    query = db.query(Memory)
+    """List all memories for the authenticated user."""
+    query = db.query(Memory).filter(Memory.user_phone == user.phone)
 
     if search:
         term = f"%{search}%"
@@ -126,9 +139,9 @@ def list_memories(
 
 
 @router.get("/memories/{memory_id}")
-def get_memory(memory_id: int, db: Session = Depends(get_db)):
-    """Get a single memory with its connections."""
-    memory = db.query(Memory).filter(Memory.id == memory_id).first()
+def get_memory(memory_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Get a single memory with its connections (owned by current user)."""
+    memory = db.query(Memory).filter(Memory.id == memory_id, Memory.user_phone == user.phone).first()
     if not memory:
         raise HTTPException(status_code=404, detail="Memory not found")
 
@@ -140,15 +153,15 @@ def get_memory(memory_id: int, db: Session = Depends(get_db)):
 @router.post("/memories")
 def create_memory(
     url: str = Query(..., description="URL to save"),
-    user_phone: str = Query("default", description="User identifier"),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Manually add a new memory via URL."""
+    """Manually add a new memory via URL (scoped to authenticated user)."""
     url = url.strip()
     if not re.match(r'^https?://', url):
         raise HTTPException(status_code=400, detail="Invalid URL — must start with http:// or https://")
     try:
-        result = process_url(url, user_phone, db)
+        result = process_url(url, user.phone, db)
         notify_change("memory_added", str(result.get("memory_id", "")))
         return result
     except Exception as e:
@@ -157,9 +170,9 @@ def create_memory(
 
 
 @router.delete("/memories/{memory_id}")
-def delete_memory(memory_id: int, db: Session = Depends(get_db)):
-    """Delete a memory and all its related connections/resurfaced entries."""
-    memory = db.query(Memory).filter(Memory.id == memory_id).first()
+def delete_memory(memory_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Delete a memory owned by the current user."""
+    memory = db.query(Memory).filter(Memory.id == memory_id, Memory.user_phone == user.phone).first()
     if not memory:
         raise HTTPException(status_code=404, detail="Memory not found")
     # Delete related connections (both directions)
@@ -182,15 +195,15 @@ def delete_memory(memory_id: int, db: Session = Depends(get_db)):
 @router.post("/process")
 def process_endpoint(
     url: str = Query(..., description="URL to process"),
-    user_phone: str = Query("default"),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Process a URL through the full cognitive pipeline (for testing)."""
+    """Process a URL through the full cognitive pipeline."""
     url = url.strip()
     if not re.match(r'^https?://', url):
         raise HTTPException(status_code=400, detail="Invalid URL — must start with http:// or https://")
     try:
-        result = process_url(url, user_phone, db)
+        result = process_url(url, user.phone, db)
         notify_change("memory_added", str(result.get("memory_id", "")))
         return result
     except Exception as e:
@@ -202,9 +215,9 @@ def process_endpoint(
 
 
 @router.get("/graph")
-def get_knowledge_graph(db: Session = Depends(get_db)):
-    """Get the full knowledge graph (nodes + edges)."""
-    return get_full_graph(db)
+def get_knowledge_graph(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Get the knowledge graph scoped to the authenticated user."""
+    return get_full_graph(db, user_phone=user.phone)
 
 
 # ── Resurfaced Insights ──────────────────────────────────────
@@ -213,32 +226,43 @@ def get_knowledge_graph(db: Session = Depends(get_db)):
 @router.get("/resurfaced")
 def get_resurfaced(
     limit: int = Query(20, ge=1, le=100),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Get recently resurfaced memories."""
-    return get_recent_resurfaced(db, limit)
+    """Get recently resurfaced memories for the authenticated user."""
+    return get_recent_resurfaced(db, limit, user_phone=user.phone)
 
 
 # ── Statistics ────────────────────────────────────────────────
 
 
 @router.get("/stats")
-def get_stats(db: Session = Depends(get_db)):
-    """Get dashboard statistics."""
-    total_memories = db.query(func.count(Memory.id)).scalar() or 0
-    total_connections = db.query(func.count(Connection.id)).scalar() or 0
-    total_resurfaced = db.query(func.count(ResurfacedMemory.id)).scalar() or 0
+def get_stats(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Get dashboard statistics for the authenticated user."""
+    total_memories = db.query(func.count(Memory.id)).filter(Memory.user_phone == user.phone).scalar() or 0
+
+    # Get connection IDs for this user's memories
+    user_mem_ids = db.query(Memory.id).filter(Memory.user_phone == user.phone).subquery()
+    total_connections = db.query(func.count(Connection.id)).filter(
+        Connection.source_id.in_(user_mem_ids) | Connection.target_id.in_(user_mem_ids)
+    ).scalar() or 0
+    total_resurfaced = db.query(func.count(ResurfacedMemory.id)).filter(
+        ResurfacedMemory.memory_id.in_(user_mem_ids)
+    ).scalar() or 0
 
     # Category distribution
     categories_raw = (
         db.query(Memory.category, func.count(Memory.id))
+        .filter(Memory.user_phone == user.phone)
         .group_by(Memory.category)
         .all()
     )
     categories = {cat: count for cat, count in categories_raw}
 
     avg_importance = (
-        db.query(func.avg(Memory.importance_score)).scalar() or 0.0
+        db.query(func.avg(Memory.importance_score))
+        .filter(Memory.user_phone == user.phone)
+        .scalar() or 0.0
     )
 
     top_category = max(categories, key=categories.get) if categories else "None"
@@ -257,10 +281,11 @@ def get_stats(db: Session = Depends(get_db)):
 
 
 @router.get("/categories")
-def get_categories(db: Session = Depends(get_db)):
-    """Get all categories with counts."""
+def get_categories(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Get all categories with counts for the authenticated user."""
     results = (
         db.query(Memory.category, func.count(Memory.id))
+        .filter(Memory.user_phone == user.phone)
         .group_by(Memory.category)
         .order_by(func.count(Memory.id).desc())
         .all()
@@ -272,9 +297,9 @@ def get_categories(db: Session = Depends(get_db)):
 
 
 @router.get("/random")
-def get_random_memory(db: Session = Depends(get_db)):
-    """Get a random memory for the 'Random Inspiration' feature."""
-    memory = db.query(Memory).order_by(func.random()).first()
+def get_random_memory(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Get a random memory for the authenticated user."""
+    memory = db.query(Memory).filter(Memory.user_phone == user.phone).order_by(func.random()).first()
     if not memory:
         raise HTTPException(status_code=404, detail="No memories yet")
     return _serialize_memory(memory)

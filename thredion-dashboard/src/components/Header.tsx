@@ -10,6 +10,8 @@ import {
   Network,
   Lightbulb,
   X,
+  LogOut,
+  Phone,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -20,6 +22,8 @@ interface HeaderProps {
   onTabChange: (tab: string) => void;
   onAddUrl: (url: string) => void;
   isProcessing: boolean;
+  userPhone?: string;
+  onLogout?: () => void;
 }
 
 const TABS = [
@@ -36,6 +40,8 @@ export default function Header({
   onTabChange,
   onAddUrl,
   isProcessing,
+  userPhone,
+  onLogout,
 }: HeaderProps) {
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [urlInput, setUrlInput] = useState("");
@@ -93,6 +99,14 @@ export default function Header({
 
           {/* Actions */}
           <div className="flex items-center gap-2 shrink-0">
+            {/* User indicator */}
+            {userPhone && (
+              <div className="hidden sm:flex items-center gap-1.5 text-xs text-surface-500 bg-surface-50 px-2.5 py-1.5 rounded-lg border border-surface-200">
+                <Phone className="h-3 w-3" />
+                <span>{userPhone}</span>
+              </div>
+            )}
+
             {showUrlInput ? (
               <div className="flex items-center gap-2">
                 <input
@@ -126,6 +140,17 @@ export default function Header({
               >
                 <Plus className="h-4 w-4" />
                 <span className="hidden sm:inline">Add Memory</span>
+              </button>
+            )}
+
+            {/* Logout */}
+            {onLogout && (
+              <button
+                onClick={onLogout}
+                title="Log out"
+                className="flex items-center justify-center w-9 h-9 rounded-xl text-surface-400 hover:text-red-600 hover:bg-red-50 transition-all"
+              >
+                <LogOut className="h-4 w-4" />
               </button>
             )}
           </div>

@@ -18,6 +18,7 @@ from core.config import settings
 from db.database import init_db
 from api.routes import router as api_router
 from api.whatsapp import router as whatsapp_router
+from api.auth import router as auth_router
 
 # ── Logging ───────────────────────────────────────────────────
 
@@ -88,6 +89,7 @@ app.add_middleware(
 
 # ── Routers ───────────────────────────────────────────────────
 
+app.include_router(auth_router)
 app.include_router(api_router)
 app.include_router(whatsapp_router)
 
@@ -103,6 +105,9 @@ def root():
         "description": "AI Cognitive Memory Engine",
         "docs": "/docs",
         "endpoints": {
+            "auth_send_otp": "/auth/send-otp",
+            "auth_verify_otp": "/auth/verify-otp",
+            "auth_me": "/auth/me",
             "memories": "/api/memories",
             "graph": "/api/graph",
             "resurfaced": "/api/resurfaced",

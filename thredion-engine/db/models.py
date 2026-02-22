@@ -5,7 +5,7 @@ SQLAlchemy ORM models for the cognitive memory engine.
 
 from datetime import datetime, timezone
 from sqlalchemy import (
-    Column, Integer, String, Float, Text, DateTime, LargeBinary, ForeignKey,
+    Boolean, Column, Integer, String, Float, Text, DateTime, LargeBinary, ForeignKey,
     UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
@@ -16,12 +16,42 @@ def _utcnow():
     return datetime.now(timezone.utc)
 
 
+# ── Auth Models ───────────────────────────────────────────────
+
+
+class User(Base):
+    """A registered user, identified by their WhatsApp phone number."""
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    phone = Column(String(50), unique=True, nullable=False, index=True)
+    name = Column(String(200), default="")
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=_utcnow)
+    last_login = Column(DateTime, default=_utcnow, onupdate=_utcnow)
+
+
+class OTPCode(Base):
+    """Temporary OTP codes sent via WhatsApp for authentication."""
+    __tablename__ = "otp_codes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    phone = Column(String(50), nullable=False, index=True)
+    code = Column(String(6), nullable=False)
+    is_used = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=_utcnow)
+    expires_at = Column(DateTime, nullable=False)
+
+
+# ── Memory Models ─────────────────────────────────────────────
+
+
 class Memory(Base):
     """A single cognitive memory — a saved link with AI-enriched metadata."""
     __tablename__ = "memories"
 
     id = Column(Integer, primary_key=True, index=True)
-    url = Column(String(2048), nullable=False, unique=True, index=True)
+    url = Column(String(2048), nullable=False, index=True)
     platform = Column(String(50), default="unknown")       # instagram, twitter, article
     title = Column(String(512), default="")
     content = Column(Text, default="")                       # original caption / text
@@ -33,8 +63,12 @@ class Memory(Base):
     importance_score = Column(Float, default=50.0)
     importance_reasons = Column(Text, default="[]")          # JSON list of reasons
     thumbnail_url = Column(String(2048), default="")
-    user_phone = Column(String(50), default="default")
+    user_phone = Column(String(50), default="default", index=True)
     created_at = Column(DateTime, default=_utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("url", "user_phone", name="uq_memory_url_user"),
+    )
 
     # Relationships
     connections_out = relationship(

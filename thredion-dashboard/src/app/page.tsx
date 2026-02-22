@@ -3,6 +3,8 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { Loader2, AlertCircle, Brain } from "lucide-react";
 
+import { useAuth } from "@/components/AuthProvider";
+import LoginPage from "@/components/LoginPage";
 import Header from "@/components/Header";
 import StatsBar from "@/components/StatsBar";
 import CategoryFilter from "@/components/CategoryFilter";
@@ -18,10 +20,36 @@ import {
   getResurfaced,
   processUrl,
   deleteMemory as apiDeleteMemory,
+  getAuthToken,
 } from "@/lib/api";
 import type { Memory, CategoryCount, ResurfacedMemory } from "@/lib/types";
 
 export default function Home() {
+  const { user, loading: authLoading, logout } = useAuth();
+
+  // Show login page if not authenticated
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-surface-50 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-brand-500" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LoginPage />;
+  }
+
+  return <Dashboard user={user} onLogout={logout} />;
+}
+
+function Dashboard({
+  user,
+  onLogout,
+}: {
+  user: { id: number; phone: string; name: string };
+  onLogout: () => void;
+}) {
   // ── State ─────────────────────────────────────────────
   const [memories, setMemories] = useState<Memory[]>([]);
   const [categories, setCategories] = useState<CategoryCount[]>([]);
@@ -89,7 +117,11 @@ export default function Home() {
     let reconnectTimer: NodeJS.Timeout | null = null;
 
     const connect = () => {
-      es = new EventSource(`${apiBase}/api/events`);
+      const token = getAuthToken();
+      const sseUrl = token
+        ? `${apiBase}/api/events?token=${encodeURIComponent(token)}`
+        : `${apiBase}/api/events`;
+      es = new EventSource(sseUrl);
 
       es.onmessage = (event) => {
         try {
@@ -166,6 +198,8 @@ export default function Home() {
         onTabChange={setActiveTab}
         onAddUrl={handleAddUrl}
         isProcessing={isProcessing}
+        userPhone={user.phone}
+        onLogout={onLogout}
       />
 
       <main className="mx-auto max-w-7xl px-4 sm:px-6 py-6 space-y-6">

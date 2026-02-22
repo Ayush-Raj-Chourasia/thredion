@@ -28,5 +28,5 @@ def get_db():
 
 def init_db():
     """Create all tables defined in models."""
-    from db.models import Memory, Connection, ResurfacedMemory  # noqa: F401
+    from db.models import User, OTPCode, Memory, Connection, ResurfacedMemory  # noqa: F401
     Base.metadata.create_all(bind=engine)

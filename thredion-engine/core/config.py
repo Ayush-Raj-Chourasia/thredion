@@ -21,6 +21,12 @@ class Settings:
     TWILIO_AUTH_TOKEN: str = os.getenv("TWILIO_AUTH_TOKEN", "")
     TWILIO_WHATSAPP_NUMBER: str = os.getenv("TWILIO_WHATSAPP_NUMBER", "")
 
+    # ── Authentication ────────────────────────────────────────
+    JWT_SECRET: str = os.getenv("JWT_SECRET", "thredion-secret-change-in-prod")
+    JWT_ALGORITHM: str = "HS256"
+    JWT_EXPIRY_HOURS: int = int(os.getenv("JWT_EXPIRY_HOURS", "168"))  # 7 days
+    OTP_EXPIRY_MINUTES: int = int(os.getenv("OTP_EXPIRY_MINUTES", "5"))
+
     # ── Embedding Configuration ───────────────────────────────
     EMBEDDING_MODEL: str = os.getenv("EMBEDDING_MODEL", "sentence-transformers")
     EMBEDDING_DIMENSION: int = 384  # MiniLM-L6-v2 dimension
