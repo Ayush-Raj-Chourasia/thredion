@@ -29,6 +29,7 @@ downloads/
 eggs/
 .eggs/
 lib/
+!thredion-dashboard/src/lib/
 lib64/
 parts/
 sdist/
