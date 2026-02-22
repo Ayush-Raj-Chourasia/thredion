@@ -189,13 +189,17 @@ export default function KnowledgeGraphView() {
         {hoveredNode !== null && (() => {
           const node = graph.nodes.find((n) => n.id === hoveredNode);
           const pos = positionsRef.current.get(hoveredNode);
-          if (!node || !pos) return null;
+          if (!node || !pos || !canvasRef.current) return null;
+          const cW = canvasRef.current.width;
+          const cH = canvasRef.current.height;
+          const tipLeft = pos.x + 20 + 200 > cW ? pos.x - 220 : pos.x + 20;
+          const tipTop = pos.y - 10 < 0 ? pos.y + 20 : pos.y - 10;
           return (
             <div
-              className="absolute z-10 rounded-lg bg-surface-900 px-3 py-2 text-xs text-white shadow-lg pointer-events-none"
-              style={{ left: pos.x + 20, top: pos.y - 10 }}
+              className="absolute z-10 max-w-[200px] rounded-lg bg-surface-900 px-3 py-2 text-xs text-white shadow-lg pointer-events-none"
+              style={{ left: tipLeft, top: tipTop }}
             >
-              <p className="font-medium">{node.title}</p>
+              <p className="font-medium truncate">{node.title}</p>
               <p className="text-surface-300">{node.category} · Score: {node.importance_score}</p>
             </div>
           );

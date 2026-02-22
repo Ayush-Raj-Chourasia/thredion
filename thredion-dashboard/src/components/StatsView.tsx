@@ -101,13 +101,13 @@ export default function StatsView() {
           </li>
           <li>
             <span className="font-medium text-surface-800">Knowledge density:</span>{" "}
-            {stats.total_connections > 0
+            {stats.total_connections > 0 && stats.total_memories > 0
               ? `${(stats.total_connections / stats.total_memories).toFixed(1)} connections per memory`
               : "No connections yet"}
           </li>
           <li>
             <span className="font-medium text-surface-800">Resurfacing rate:</span>{" "}
-            {stats.total_resurfaced > 0
+            {stats.total_resurfaced > 0 && stats.total_memories > 0
               ? `${((stats.total_resurfaced / stats.total_memories) * 100).toFixed(0)}% of memories resurfaced`
               : "No resurfacing yet"}
           </li>
