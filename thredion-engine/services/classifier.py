@@ -136,6 +136,39 @@ Return ONLY valid JSON. No markdown, no explanation."""
     )
 
 
+# Platform-to-category mapping for URL-based classification
+PLATFORM_CATEGORY_MAP: dict[str, str] = {
+    "instagram": "Entertainment",
+    "twitter": "Entertainment",
+    "tiktok": "Entertainment",
+    "youtube": "Entertainment",
+    "reddit": "Entertainment",
+}
+
+# URL pattern hints for better classification
+URL_CATEGORY_HINTS: list[tuple[str, str]] = [
+    ("instagram.com/reel", "Entertainment"),
+    ("instagram.com/p/", "Entertainment"),
+    ("instagram.com/stories", "Entertainment"),
+    ("youtube.com/watch", "Entertainment"),
+    ("youtu.be/", "Entertainment"),
+    ("twitter.com", "Entertainment"),
+    ("x.com", "Entertainment"),
+    ("tiktok.com", "Entertainment"),
+    ("reddit.com", "Entertainment"),
+    ("medium.com", "Education"),
+    ("dev.to", "Coding"),
+    ("github.com", "Coding"),
+    ("stackoverflow.com", "Coding"),
+    ("arxiv.org", "Science"),
+    ("dribbble.com", "Design"),
+    ("behance.net", "Design"),
+    ("figma.com", "Design"),
+    ("spotify.com", "Music"),
+    ("soundcloud.com", "Music"),
+]
+
+
 def _classify_with_keywords(text: str) -> ClassificationResult:
     """Fallback: classify content using keyword matching."""
     text_lower = text.lower()
@@ -145,6 +178,23 @@ def _classify_with_keywords(text: str) -> ClassificationResult:
         score = sum(1 for kw in keywords if kw in text_lower)
         if score > 0:
             scores[category] = score
+
+    # If no keyword matches, try URL / platform-based classification
+    if not scores:
+        for pattern, cat in URL_CATEGORY_HINTS:
+            if pattern in text_lower:
+                scores[cat] = scores.get(cat, 0) + 2
+                break
+
+    # Also detect platform names in the text itself
+    platform_mentions = {
+        "instagram": "Entertainment", "reel": "Entertainment",
+        "tiktok": "Entertainment", "youtube": "Entertainment",
+        "twitter": "Entertainment", "reddit": "Entertainment",
+    }
+    for platform, cat in platform_mentions.items():
+        if platform in text_lower:
+            scores[cat] = scores.get(cat, 0) + 1
 
     if scores:
         category = max(scores, key=scores.get)
@@ -169,7 +219,12 @@ def _classify_with_keywords(text: str) -> ClassificationResult:
     # Extract tags from text
     words = re.findall(r'#(\w+)', text)
     if not words:
-        words = [w for w in text_lower.split() if len(w) > 4][:5]
+        # Filter out pure URL fragments and short words
+        words = [w for w in text_lower.split() if len(w) > 4 and not w.startswith("http")]
+        # Add platform-derived tags
+        for platform in ["instagram", "youtube", "twitter", "tiktok", "reddit"]:
+            if platform in text_lower and platform not in words:
+                words.append(platform)
     tags = list(set(words[:5]))
 
     # Build topic graph
@@ -177,6 +232,11 @@ def _classify_with_keywords(text: str) -> ClassificationResult:
     if category in KEYWORD_MAP:
         matched = [kw for kw in KEYWORD_MAP[category] if kw in text_lower]
         topic_graph.extend(matched[:3])
+    # Add platform as topic if relevant
+    for platform in ["Instagram", "YouTube", "Twitter", "TikTok", "Reddit"]:
+        if platform.lower() in text_lower and platform not in topic_graph:
+            topic_graph.insert(1, platform)
+            break
 
     return ClassificationResult(
         category=category,

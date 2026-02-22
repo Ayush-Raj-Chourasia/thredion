@@ -55,6 +55,7 @@ async def whatsapp_webhook(
 
     # Process each URL
     replies = []
+    thumbnail_url = ""
     for url in urls[:3]:  # Max 3 URLs per message
         try:
             result = process_url(url, user_phone, db)
@@ -62,12 +63,15 @@ async def whatsapp_webhook(
                 replies.append(_build_duplicate_reply(result))
             else:
                 replies.append(_build_success_reply(result))
+            # Capture thumbnail from the first result that has one
+            if not thumbnail_url and result.get("thumbnail_url"):
+                thumbnail_url = result["thumbnail_url"]
         except Exception as e:
             logger.error(f"[WhatsApp] Failed to process {url}: {e}")
             replies.append(f"⚠️ Couldn't process: {url}\nError: {str(e)[:100]}")
 
     full_reply = "\n\n---\n\n".join(replies)
-    return _twiml_response(full_reply)
+    return _twiml_response(full_reply, media_url=thumbnail_url)
 
 
 @router.get("/webhook")
@@ -173,12 +177,16 @@ def _importance_bar(score: float) -> str:
     return "█" * filled + "░" * (10 - filled)
 
 
-def _twiml_response(message: str) -> PlainTextResponse:
-    """Wrap reply in TwiML format for Twilio."""
+def _twiml_response(message: str, media_url: str = "") -> PlainTextResponse:
+    """Wrap reply in TwiML format for Twilio, optionally with a media attachment."""
+    media_tag = ""
+    if media_url:
+        # Twilio supports <Media> inside <Message> for sending images
+        media_tag = f"<Media>{_escape_xml(media_url)}</Media>"
     twiml = (
         '<?xml version="1.0" encoding="UTF-8"?>'
         "<Response>"
-        f"<Message>{_escape_xml(message)}</Message>"
+        f"<Message>{_escape_xml(message)}{media_tag}</Message>"
         "</Response>"
     )
     return PlainTextResponse(content=twiml, media_type="application/xml")

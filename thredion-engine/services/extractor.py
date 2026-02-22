@@ -114,19 +114,78 @@ def _get_meta(soup: BeautifulSoup, property_name: str) -> Optional[str]:
 
 # ── Instagram ─────────────────────────────────────────────────
 
+def _parse_instagram_url(url: str) -> dict:
+    """Parse an Instagram URL to extract content type and shortcode."""
+    info = {"type": "post", "shortcode": "", "username": ""}
+    url_lower = url.lower()
+    if "/reel/" in url_lower or "/reels/" in url_lower:
+        info["type"] = "reel"
+    elif "/stories/" in url_lower:
+        info["type"] = "story"
+    elif "/p/" in url_lower:
+        info["type"] = "post"
+    elif "/tv/" in url_lower:
+        info["type"] = "igtv"
+
+    # Extract shortcode
+    match = re.search(r'/(?:p|reel|reels|tv)/([A-Za-z0-9_-]+)', url)
+    if match:
+        info["shortcode"] = match.group(1)
+
+    # Extract username from stories or profile URLs
+    match = re.search(r'/stories/([^/]+)/', url)
+    if match:
+        info["username"] = match.group(1)
+    elif not any(x in url for x in ["/p/", "/reel/", "/reels/", "/tv/"]):
+        match = re.search(r'instagram\.com/([A-Za-z0-9_.]+)', url)
+        if match and match.group(1) not in ("explore", "accounts", "about", "developer"):
+            info["username"] = match.group(1)
+
+    return info
+
+
 def _extract_instagram(url: str) -> ExtractedContent:
     """Extract content from an Instagram post/reel URL."""
-    # Try oEmbed API first (works for public posts)
+    url_info = _parse_instagram_url(url)
+    content_type = url_info["type"]
+    shortcode = url_info["shortcode"]
+
+    # Strategy 1: Try noembed.com proxy (free, no auth required)
+    try:
+        noembed_url = f"https://noembed.com/embed?url={url}"
+        resp = requests.get(noembed_url, headers=HEADERS, timeout=10)
+        if resp.status_code == 200:
+            data = resp.json()
+            if data.get("title") and not data.get("error"):
+                title = data.get("title", "")
+                author = data.get("author_name", "")
+                thumbnail = data.get("thumbnail_url", "")
+                content = title
+                if author:
+                    content = f"Instagram {content_type} by @{author}: {title}"
+                else:
+                    content = f"Instagram {content_type}: {title}"
+                return ExtractedContent(
+                    platform="instagram",
+                    title=title[:512],
+                    content=content[:2000],
+                    thumbnail_url=thumbnail,
+                    url=url,
+                )
+    except Exception as e:
+        logger.debug(f"noembed.com failed for Instagram: {e}")
+
+    # Strategy 2: Try Instagram oEmbed (may require auth, often returns HTML)
     try:
         oembed_url = f"https://api.instagram.com/oembed?url={url}&omitscript=true"
         resp = requests.get(oembed_url, headers=HEADERS, timeout=10)
-        if resp.status_code == 200:
+        if resp.status_code == 200 and "application/json" in resp.headers.get("content-type", ""):
             data = resp.json()
-            title = data.get("title", "Instagram Post")
+            title = data.get("title", f"Instagram {content_type.title()}")
             author = data.get("author_name", "")
             content = title
             if author:
-                content = f"By @{author}: {title}"
+                content = f"Instagram {content_type} by @{author}: {title}"
             thumbnail = data.get("thumbnail_url", "")
             return ExtractedContent(
                 platform="instagram",
@@ -135,11 +194,88 @@ def _extract_instagram(url: str) -> ExtractedContent:
                 thumbnail_url=thumbnail,
                 url=url,
             )
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Instagram oEmbed failed: {e}")
 
-    # Fallback to meta tags
-    return _extract_meta_tags(url, "instagram")
+    # Strategy 3: Scrape meta tags with a fresh session
+    try:
+        session = requests.Session()
+        # First visit the main page to get cookies
+        session.get("https://www.instagram.com/", headers=HEADERS, timeout=5)
+        resp = session.get(url, headers=HEADERS, timeout=10, allow_redirects=True)
+        soup = BeautifulSoup(resp.text, "html.parser")
+
+        og_title = _get_meta(soup, "og:title") or ""
+        og_desc = _get_meta(soup, "og:description") or ""
+        og_image = _get_meta(soup, "og:image") or ""
+
+        # Check if we got real data (not just "Instagram")
+        if og_title and og_title.strip().lower() != "instagram":
+            content = og_title
+            if og_desc:
+                content = f"{og_title} — {og_desc}"
+            return ExtractedContent(
+                platform="instagram",
+                title=og_title[:512],
+                content=content[:2000],
+                thumbnail_url=og_image,
+                url=url,
+            )
+    except Exception as e:
+        logger.debug(f"Instagram meta tag scraping failed: {e}")
+
+    # Strategy 4: Construct meaningful metadata from URL structure
+    type_labels = {
+        "reel": "Instagram Reel",
+        "post": "Instagram Post",
+        "story": "Instagram Story",
+        "igtv": "Instagram IGTV Video",
+    }
+    title = type_labels.get(content_type, "Instagram Content")
+    if shortcode:
+        title = f"{title} ({shortcode})"
+
+    content_desc = f"{title} — Shared via Instagram."
+    if content_type == "reel":
+        content_desc = f"{title} — Short-form video content shared via Instagram Reels. Entertainment and social media content."
+    elif content_type == "story":
+        content_desc = f"{title} — Ephemeral story content shared on Instagram."
+    elif content_type == "igtv":
+        content_desc = f"{title} — Long-form video content on Instagram IGTV."
+
+    if url_info["username"]:
+        content_desc += f" Creator: @{url_info['username']}."
+
+    # Strategy 5: Try to get thumbnail via a direct meta-tag fetch with minimal headers
+    thumbnail = ""
+    try:
+        clean_url = url.split("?")[0]  # strip query params for cleaner request
+        if not clean_url.endswith("/"):
+            clean_url += "/"
+        meta_headers = {
+            "User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+            "Accept": "text/html",
+            "Accept-Language": "en-US,en;q=0.9",
+        }
+        resp = requests.get(clean_url, headers=meta_headers, timeout=8, allow_redirects=True)
+        soup = BeautifulSoup(resp.text, "html.parser")
+        thumbnail = (
+            _get_meta(soup, "og:image")
+            or _get_meta(soup, "twitter:image")
+            or ""
+        )
+        if thumbnail:
+            logger.debug(f"Got Instagram thumbnail via Googlebot UA: {thumbnail[:80]}")
+    except Exception as e:
+        logger.debug(f"Instagram thumbnail fetch failed: {e}")
+
+    return ExtractedContent(
+        platform="instagram",
+        title=title,
+        content=content_desc,
+        thumbnail_url=thumbnail,
+        url=url,
+    )
 
 
 # ── Twitter / X ───────────────────────────────────────────────

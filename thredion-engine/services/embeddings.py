@@ -17,22 +17,34 @@ _model = None
 _model_type: str = "none"
 
 
-def _load_model():
+def _load_model(force_reload: bool = False):
     """Lazy-load the embedding model."""
     global _model, _model_type
 
-    if _model is not None:
+    if _model is not None and not force_reload:
         return
 
     # Try sentence-transformers first
     try:
+        import torch
         from sentence_transformers import SentenceTransformer
-        _model = SentenceTransformer("all-MiniLM-L6-v2")
+        # Force weights_only=False to avoid meta tensor issues on PyTorch 2.10+
+        _orig_load = torch.load
+        def _patched_load(*args, **kwargs):
+            kwargs.setdefault("weights_only", False)
+            return _orig_load(*args, **kwargs)
+        torch.load = _patched_load
+        try:
+            _model = SentenceTransformer("all-MiniLM-L6-v2")
+        finally:
+            torch.load = _orig_load
         _model_type = "sentence-transformers"
         logger.info("Loaded sentence-transformers model: all-MiniLM-L6-v2")
         return
     except ImportError:
         logger.warning("sentence-transformers not installed. Trying sklearn TF-IDF fallback.")
+    except Exception as e:
+        logger.warning(f"sentence-transformers load failed ({e}). Trying fallbacks.")
 
     # Fallback to TF-IDF
     try:
@@ -72,8 +84,21 @@ def generate_embedding(text: str) -> Optional[bytes]:
             return pickle.dumps(vec.astype(np.float32))
 
     except Exception as e:
-        logger.error(f"Embedding generation failed: {e}")
-        return None
+        # If sentence-transformers fails (e.g. meta tensor error), retry once with fresh load
+        if _model_type == "sentence-transformers":
+            logger.warning(f"Embedding encode failed ({e}), retrying with fresh model load...")
+            try:
+                _load_model(force_reload=True)
+                if _model_type == "sentence-transformers":
+                    vec = _model.encode(text, normalize_embeddings=True)
+                    return pickle.dumps(vec.astype(np.float32))
+            except Exception as e2:
+                logger.warning(f"Retry also failed ({e2}), falling back to hash embedding.")
+
+        # Ultimate fallback — hash-based embedding always works
+        logger.error(f"Embedding generation failed: {e}. Using hash fallback.")
+        vec = _hash_embed(text)
+        return pickle.dumps(vec.astype(np.float32))
 
 
 def embedding_to_vector(embedding_bytes: bytes) -> Optional[np.ndarray]:
