@@ -1,0 +1,167 @@
+# ==========================================
+# ENVIRONMENT & VIRTUAL ENV
+# ==========================================
+venv/
+env/
+ENV/
+.env
+.env.local
+.env.*.local
+.venv
+
+# ==========================================
+# PYTHON
+# ==========================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ==========================================
+# DATABASE
+# ==========================================
+db.sqlite3
+db.sqlite3-journal
+*.db
+*.sqlite
+*.sqlite3
+
+# ==========================================
+# IDE & EDITOR
+# ==========================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.sublime-project
+.sublime-workspace
+
+# ==========================================
+# NODE & FRONTEND
+# ==========================================
+node_modules/
+npm-debug.log
+yarn-error.log
+package-lock.json
+
+# ==========================================
+# TESTING
+# ==========================================
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+test_output.txt
+test_logs/
+TEST_RESULTS.json
+MODEL_TEST_RESULTS.json
+test_*.json
+
+# ==========================================
+# DOCUMENTATION (Keep README.md only)
+# ==========================================
+*.md
+!README.md
+!docs/**/*.md
+
+# ==========================================
+# JUPYTER NOTEBOOKS
+# ==========================================
+.ipynb_checkpoints
+*.ipynb
+!docs/**/*.ipynb
+
+# ==========================================
+# OS FILES
+# ==========================================
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# ==========================================
+# LOGS
+# ==========================================
+*.log
+logs/
+
+# ==========================================
+# DJANGO
+# ==========================================
+local_settings.py
+/media
+/staticfiles
+
+# ==========================================
+# TEMPORARY FILES
+# ==========================================
+*.tmp
+*.bak
+tmp/
+temp/
+.temp
+
+# ==========================================
+# CREDENTIALS & SECRETS
+# ==========================================
+*.key
+*.pem
+credentials.json
+secrets.json
+.aws/
+.env.production
+.env.development
+
+# ==========================================
+# BUILD OUTPUTS
+# ==========================================
+/dist
+/build
+*.whl
+
+# ==========================================
+# MISC
+# ==========================================
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.python-version
+.ruby-version
+.nvmrc
+_pycache/
+*.pickle
+*.pkl
+docs
+*.md
+!README.md
+
+Hack The Thread Official Problem Statement.pdf
+Submission Guidelines.pdf
