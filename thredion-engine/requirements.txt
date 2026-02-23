@@ -10,8 +10,10 @@ python-multipart==0.0.9
 sqlalchemy==2.0.35
 
 # ── AI / NLP ──────────────────────────────────────────────
-# sentence-transformers kept in code but NOT installed on free tier
-# (2GB+ with PyTorch). The code falls back to TF-IDF automatically.
+# sentence-transformers is NOT pip-installed on Azure free tier
+# (it pulls PyTorch ~2 GB which exceeds the 1 GB RAM limit).
+# The code in embeddings.py auto-falls back to TF-IDF (scikit-learn).
+# To use sentence-transformers locally, just: pip install sentence-transformers
 scikit-learn==1.5.2
 numpy==1.26.4
 openai==1.50.0
@@ -22,9 +24,6 @@ beautifulsoup4==4.12.3
 
 # ── Config ────────────────────────────────────────────────
 python-dotenv==1.0.1
-
-# ── Authentication ───────────────────────────────────────
-PyJWT==2.9.0
 
 # ── WhatsApp (Twilio) ────────────────────────────────────
 twilio==9.3.0
