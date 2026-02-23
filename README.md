@@ -6,6 +6,23 @@ Thredion is not just a link saver — it's a **cognitive layer** that understand
 
 ---
 
+## Try It Now
+
+| | Link |
+|---|---|
+| **Dashboard** | [thredion.vercel.app](https://thredion.vercel.app) |
+| **API** | [thredion-api.azurewebsites.net](https://thredion-api.azurewebsites.net) |
+| **WhatsApp Bot** | [**Chat on WhatsApp →**](https://wa.me/14155238886?text=join%20drew-brother) |
+
+> **How to connect the WhatsApp Bot:**
+> 1. Click the WhatsApp link above (or scan the QR code in Twilio Console)
+> 2. It opens WhatsApp with the Twilio Sandbox number **+1 (415) 523-8886**
+> 3. Send the join message to activate the sandbox
+> 4. Once connected, just **paste any link** (Instagram reel, YouTube video, article, tweet) and the bot will process it through the full cognitive pipeline
+> 5. Open the [Dashboard](https://thredion.vercel.app) to see your memories, knowledge graph, and analytics
+
+---
+
 ## Dashboard Preview
 
 ![Thredion Dashboard](assets/dashboard-preview.png)
@@ -200,11 +217,12 @@ Dashboard runs at `http://localhost:3000`
 
 ### WhatsApp Bot Setup (Twilio Sandbox)
 
-1. Create a free Twilio account
+1. Create a free [Twilio account](https://www.twilio.com/try-twilio)
 2. Go to Messaging → Try it Out → WhatsApp Sandbox
-3. Set webhook URL to: `https://your-server/api/whatsapp/webhook`
+3. Set webhook URL to: `https://thredion-api.azurewebsites.net/api/whatsapp/webhook` (POST)
 4. Add Twilio credentials to `.env`
-5. Send any link to the bot number
+5. Join the sandbox: [**Open WhatsApp →**](https://wa.me/14155238886?text=join%20drew-brother)
+6. Send any link to the bot and it processes through the full cognitive pipeline
 
 ---
 
@@ -358,11 +376,21 @@ python -m pytest tests/ -v
 
 ---
 
+## Live Deployment
+
+| Component | Platform | URL |
+|-----------|----------|-----|
+| **Backend API** | Azure App Service (Free F1) | [thredion-api.azurewebsites.net](https://thredion-api.azurewebsites.net) |
+| **Dashboard** | Vercel | [thredion.vercel.app](https://thredion.vercel.app) |
+| **WhatsApp Bot** | Twilio Sandbox | [Chat on WhatsApp →](https://wa.me/14155238886?text=join%20drew-brother) |
+| **API Docs** | Swagger UI | [thredion-api.azurewebsites.net/docs](https://thredion-api.azurewebsites.net/docs) |
+
+---
+
 ## Future Vision
 
 Thredion evolves beyond a saver into a **cognitive operating system** for human memory augmentation:
 
-- Multi-user authentication
 - Scheduled "Memory Digest" emails
 - Voice-note memory capture
 - Browser extension for instant saves
