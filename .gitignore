@@ -9,10 +9,8 @@ ENV/
 .env.*.local
 .venv
 
-# ==========================================
-# HACKATHON PDFS (NOT PART OF SUBMISSION)
-# ==========================================
-*.pdf
+
+
 
 # ==========================================
 # PYTHON
@@ -169,6 +167,5 @@ docs
 *.md
 !README.md
 
-Hack The Thread Official Problem Statement.pdf
-Submission Guidelines.pdf
+*.pdf
 azure-logs.zip
