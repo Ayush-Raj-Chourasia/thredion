@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   title: "Thredion — AI Cognitive Memory Engine",
   description:
     "Transform social media saves into an intelligent, searchable, self-organizing knowledge system. Your AI Second Brain.",
-  icons: { icon: "/favicon.ico" },
+  icons: { icon: "/icon.svg" },
 };
 
 export default function RootLayout({
