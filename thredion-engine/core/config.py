@@ -8,10 +8,17 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# On Azure Linux App Service, /home is persistent across deploys.
+# Locally, use ./thredion.db in the current directory.
+_default_db_path = "sqlite:///./thredion.db"
+if os.path.isdir("/home"):
+    os.makedirs("/home/data", exist_ok=True)
+    _default_db_path = "sqlite:////home/data/thredion.db"
+
 
 class Settings:
     # ── Database ──────────────────────────────────────────────
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./thredion.db")
+    DATABASE_URL: str = os.getenv("DATABASE_URL", _default_db_path)
 
     # ── OpenAI ────────────────────────────────────────────────
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
