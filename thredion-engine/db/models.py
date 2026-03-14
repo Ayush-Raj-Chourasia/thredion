@@ -91,6 +91,7 @@ class Memory(Base):
     # ── NEW: Realistic Architecture Fields ──────────────────────
     source_type = Column(String(50), default="metadata_only")  # yt_transcript_api|yt_subtitle|local_asr|
                                                                   # cookies_asr|caption_only|post_text_only|etc
+    content_quality = Column(String(20), default="pending")    # full_transcript|subtitle_only|caption_only|metadata_only
     failure_reason = Column(Text, default=None, nullable=True)   # Human-readable failure reason
     failure_class = Column(String(20), default=None, nullable=True)  # transient|auth|permanent|unsupported
     

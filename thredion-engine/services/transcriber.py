@@ -259,6 +259,7 @@ async def transcribe_short_video(url: str) -> str:
         else:
             raise RuntimeError(f"Transcription produced no output: {result.error}")
     finally:
+        # Cleanup
         try:
             if audio_path and os.path.exists(audio_path):
                 os.remove(audio_path)
@@ -414,14 +415,16 @@ async def process_video(
 
 # Utility: Clean up old audio files
 async def cleanup_temp_audio():
-    """Periodically clean up downloaded audio files from /tmp."""
+    """Periodically clean up downloaded audio files from temp dir."""
     import glob
+    tmp_dir = tempfile.gettempdir()
     try:
-        for f in glob.glob('/tmp/*.wav'):
-            try:
-                os.remove(f)
-                logger.info(f"Cleaned up: {f}")
-            except:
-                pass
+        for pattern in ['thredion_audio_*.wav', 'thredion_audio_*.mp3', 'thredion_audio_*.ogg']:
+            for f in glob.glob(os.path.join(tmp_dir, pattern)):
+                try:
+                    os.remove(f)
+                    logger.info(f"Cleaned up: {f}")
+                except Exception:
+                    pass
     except Exception as e:
         logger.warning(f"Cleanup failed: {e}")
