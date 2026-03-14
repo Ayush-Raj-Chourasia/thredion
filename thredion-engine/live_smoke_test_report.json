@@ -1,0 +1,129 @@
+{
+  "timestamp": "2026-03-15T02:19:54.193251",
+  "summary": {
+    "passed": 8,
+    "total": 10,
+    "by_platform": {
+      "youtube": {
+        "passed": 3,
+        "total": 5
+      },
+      "instagram": {
+        "passed": 5,
+        "total": 5
+      }
+    }
+  },
+  "results": [
+    {
+      "platform": "youtube",
+      "url": "https://www.youtube.com/shorts/rJhJ9xlRyTA",
+      "success": true,
+      "source_type": "yt_transcript_api",
+      "duration_seconds": 4.535797357559204,
+      "content_length": 523,
+      "failure_reason": null,
+      "title": "British VS American #shorts #english #englishclass"
+    },
+    {
+      "platform": "youtube",
+      "url": "https://www.youtube.com/shorts/Edl-l88L-C4",
+      "success": false,
+      "source_type": "local_asr",
+      "duration_seconds": 5.44294810295105,
+      "content_length": 0,
+      "failure_reason": "Queued for async transcription",
+      "title": ""
+    },
+    {
+      "platform": "youtube",
+      "url": "https://www.youtube.com/shorts/gX-72MXld8s",
+      "success": false,
+      "source_type": "metadata_only",
+      "duration_seconds": 6.849808216094971,
+      "content_length": 50,
+      "failure_reason": "All transcription methods failed, returning metadata only",
+      "title": "Beginner, Intermediate & Advanced English! #shorts"
+    },
+    {
+      "platform": "youtube",
+      "url": "https://www.youtube.com/shorts/cFRZM-06z9o",
+      "success": true,
+      "source_type": "yt_transcript_api",
+      "duration_seconds": 4.4015655517578125,
+      "content_length": 919,
+      "failure_reason": null,
+      "title": "ADVANCED ENGLISH Vocabulary #shorts #learnenglish"
+    },
+    {
+      "platform": "youtube",
+      "url": "https://www.youtube.com/shorts/xVDSRXz6McQ",
+      "success": true,
+      "source_type": "yt_transcript_api",
+      "duration_seconds": 3.924010753631592,
+      "content_length": 337,
+      "failure_reason": null,
+      "title": "English Class at School. IN vs ON #shorts"
+    },
+    {
+      "platform": "instagram",
+      "url": "https://www.instagram.com/reel/C-_El56RpwS/",
+      "success": true,
+      "source_type": "media_accessible",
+      "duration_seconds": 5.778989315032959,
+      "content_length": 66,
+      "failure_reason": null,
+      "title": "Video by itsbobbyfinn",
+      "has_video": false,
+      "has_carousel": false
+    },
+    {
+      "platform": "instagram",
+      "url": "https://www.instagram.com/reel/DBE9FzwRqkt/",
+      "success": true,
+      "source_type": "media_accessible",
+      "duration_seconds": 5.865212440490723,
+      "content_length": 74,
+      "failure_reason": null,
+      "title": "Video by itsbobbyfinn",
+      "has_video": false,
+      "has_carousel": false
+    },
+    {
+      "platform": "instagram",
+      "url": "https://www.instagram.com/reel/C_tdGqYRwHo/",
+      "success": true,
+      "source_type": "media_accessible",
+      "duration_seconds": 5.226476669311523,
+      "content_length": 47,
+      "failure_reason": null,
+      "title": "Video by itsbobbyfinn",
+      "has_video": false,
+      "has_carousel": false
+    },
+    {
+      "platform": "instagram",
+      "url": "https://www.instagram.com/reel/C-LggFCxdZE/",
+      "success": true,
+      "source_type": "media_accessible",
+      "duration_seconds": 5.6957244873046875,
+      "content_length": 65,
+      "failure_reason": null,
+      "title": "Video by itsbobbyfinn",
+      "has_video": false,
+      "has_carousel": false
+    },
+    {
+      "platform": "instagram",
+      "url": "https://www.instagram.com/reel/DE0ZNySRlQ0/",
+      "success": true,
+      "source_type": "media_accessible",
+      "duration_seconds": 5.9351966381073,
+      "content_length": 58,
+      "failure_reason": null,
+      "title": "Video by itsbobbyfinn",
+      "has_video": false,
+      "has_carousel": false
+    }
+  ]
+}

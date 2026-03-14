@@ -88,8 +88,33 @@ class Memory(Base):
     processing_error = Column(Text, default=None, nullable=True)
     processed_at = Column(DateTime, default=None, nullable=True)
 
+    # ── NEW: Realistic Architecture Fields ──────────────────────
+    source_type = Column(String(50), default="metadata_only")  # yt_transcript_api|yt_subtitle|local_asr|
+                                                                  # cookies_asr|caption_only|post_text_only|etc
+    failure_reason = Column(Text, default=None, nullable=True)   # Human-readable failure reason
+    failure_class = Column(String(20), default=None, nullable=True)  # transient|auth|permanent|unsupported
+    
+    credits_spent = Column(Float, default=0.0)                  # Track third-party API costs
+    fallback_attempted = Column(Boolean, default=False)         # Did we try multiple methods?
+    extraction_time_ms = Column(Integer, default=0)             # Extraction duration
+    
+    transcript_quality_score = Column(Float, default=None, nullable=True)  # 0-1 quality
+    content_hash = Column(String(64), default=None, nullable=True)  # SHA256 for dedup
+    canonical_url = Column(String(2048), default=None, nullable=True, index=True)  # Normalized URL
+    
+    cached_until = Column(DateTime, default=None, nullable=True)  # When to re-check if failed
+    last_failure_at = Column(DateTime, default=None, nullable=True)  # Last error time
+    
+    job_id = Column(String(100), default=None, nullable=True, unique=True, index=True)  # Async job ref
+    job_status = Column(String(20), default="completed")  # queued|extracting|transcribing|
+                                                            # classifying|completed|failed|partial|unavailable
+    job_priority = Column(Integer, default=5)              # 1=urgent, 10=background
+    
+    detected_language = Column(String(10), default=None, nullable=True)  # "en", "es", etc
+
     __table_args__ = (
         UniqueConstraint("url", "user_phone", name="uq_memory_url_user"),
+        UniqueConstraint("canonical_url", "user_phone", name="uq_memory_canonical_user"),
     )
 
     # Relationships
