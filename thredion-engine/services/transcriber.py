@@ -44,7 +44,7 @@ async def load_whisper_model() -> WhisperModel:
         logger.info("Loading faster-whisper model (base)...")
         try:
             _whisper_model = WhisperModel(
-                model_size=settings.WHISPER_MODEL_SIZE,
+                model_size_or_path=settings.WHISPER_MODEL_SIZE,
                 device="cpu",
                 compute_type="int8",  # 8-bit quantization for low RAM
                 num_workers=1,
@@ -130,6 +130,9 @@ async def transcribe_short_video(url: str) -> str:
     
     def _transcribe():
         try:
+            # Get ffmpeg path from environment or use default
+            ffmpeg_path = os.getenv('FFMPEG_PATH', 'ffmpeg')
+            
             # Download audio only (no video)
             ydl_opts = {
                 'format': 'bestaudio/best',
@@ -138,6 +141,7 @@ async def transcribe_short_video(url: str) -> str:
                     'preferredcodec': 'wav',
                     'preferredquality': '192',
                 }],
+                'ffmpeg_location': ffmpeg_path,
                 'quiet': True,
                 'no_warnings': True,
                 'outtmpl': '/tmp/%(title)s.%(ext)s',

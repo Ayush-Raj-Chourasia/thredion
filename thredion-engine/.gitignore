@@ -9,3 +9,7 @@ venv/
 *.db
 *.sqlite
 .cache/
+*.md
+!README.md
+*.pdf
+FINAL_DELIVERY_SUMMARY.txt

@@ -1,7 +1,7 @@
 """
 Thredion Engine — Content Extractor
 Extracts meaningful content from Instagram, Twitter/X, YouTube, and article URLs.
-Enhanced to support video transcription routing.
+Includes video transcription for audio-to-text conversion.
 """
 
 import re
@@ -54,6 +54,35 @@ def detect_platform(url: str) -> str:
         return "tiktok"
     else:
         return "article"
+
+
+def _transcribe_video_to_text(url: str) -> Optional[str]:
+    """
+    Try to transcribe a video to text using local faster-whisper.
+    This is a synchronous wrapper that runs transcription.
+    Returns the transcript text or None if transcription fails.
+    """
+    try:
+        import os
+        from services.transcriber import transcribe_short_video
+        
+        logger.info(f"🎤 Attempting to transcribe: {url}")
+        
+        # Run async transcription in a new event loop
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            transcript = loop.run_until_complete(transcribe_short_video(url))
+            if transcript:
+                logger.info(f"✅ Transcription successful: {len(transcript)} chars")
+                return transcript
+        finally:
+            loop.close()
+        
+        return None
+    except Exception as e:
+        logger.warning(f"⚠️ Transcription failed: {e}. Using metadata as fallback.")
+        return None
 
 
 def extract_from_url(url: str) -> ExtractedContent:
@@ -319,43 +348,77 @@ def _extract_twitter(url: str) -> ExtractedContent:
 
 def _extract_youtube(url: str) -> ExtractedContent:
     """
-    Extract content from a YouTube URL.
-    Enhanced to get duration and metadata for transcription routing.
+    Extract content from a YouTube URL including TRANSCRIPTION.
+    For short videos: Uses local faster-whisper for instant transcription.
+    For longer videos: Returns metadata (transcription queued async).
     """
+    metadata = {
+        'uploader': '',
+        'description': '',
+        'view_count': 0,
+        'duration': 0,
+    }
+    
+    # Get metadata first
     try:
-        # Try oembed first (fast)
+        with yt_dlp.YoutubeDL({'quiet': True, 'no_warnings': True}) as ydl:
+            info = ydl.extract_info(url, download=False)
+            metadata['duration'] = int(info.get('duration', 0))
+            metadata['uploader'] = info.get('uploader', '')
+            metadata['description'] = info.get('description', '')[:500]
+            metadata['view_count'] = info.get('view_count', 0)
+    except Exception as e:
+        logger.warning(f"Could not get YouTube metadata: {e}")
+    
+    title = "YouTube Video"
+    thumbnail = ""
+    
+    # Try oembed for title and thumbnail
+    try:
         oembed_url = f"https://www.youtube.com/oembed?url={url}&format=json"
         resp = requests.get(oembed_url, headers=HEADERS, timeout=10)
         if resp.status_code == 200:
             data = resp.json()
-            basic_result = ExtractedContent(
-                platform="youtube",
-                title=data.get("title", "YouTube Video")[:512],
-                content=data.get("title", "")[:2000],
-                thumbnail_url=data.get("thumbnail_url", ""),
-                url=url,
-                is_video=True,
-            )
-            
-            # Try to get duration from yt-dlp
-            try:
-                with yt_dlp.YoutubeDL({'quiet': True, 'no_warnings': True}) as ydl:
-                    info = ydl.extract_info(url, download=False)
-                    duration = int(info.get('duration', 0))
-                    basic_result.duration_seconds = duration
-                    basic_result.video_metadata = {
-                        'uploader': info.get('uploader', ''),
-                        'description': info.get('description', '')[:500],
-                        'view_count': info.get('view_count', 0),
-                    }
-            except Exception as e:
-                logger.debug(f"Failed to get YouTube duration: {e}")
-            
-            return basic_result
+            title = data.get("title", "YouTube Video")[:512]
+            thumbnail = data.get("thumbnail_url", "")
     except Exception:
         pass
-
-    return _extract_meta_tags(url, "youtube")
+    
+    # Transcription logic
+    transcript = None
+    duration = metadata.get('duration', 0)
+    
+    if duration > 0 and duration <= 300:  # <= 5 minutes
+        logger.info(f"📹 Short video detected ({duration}s). Transcribing...")
+        transcript = _transcribe_video_to_text(url)
+    elif duration > 300:
+        logger.info(f"📹 Long video detected ({duration}s). Skipping local transcription.")
+        # For production: would queue for async processing
+    else:
+        logger.debug(f"Could not determine video duration for {url}")
+    
+    # Create result with transcript as content if available
+    content = ""
+    if transcript:
+        # Use full transcript as content
+        logger.info(f"Using transcribed content: {len(transcript)} chars")
+        content = transcript[:3000]  # Limit to 3000 chars for LLM processing
+    else:
+        # Fallback to description if no transcript
+        content = f"{title}\n\n{metadata['description']}"
+        if metadata['uploader']:
+            content += f"\nUploaded by: {metadata['uploader']}"
+    
+    return ExtractedContent(
+        platform="youtube",
+        title=title,
+        content=content,
+        thumbnail_url=thumbnail,
+        url=url,
+        is_video=True,
+        duration_seconds=duration,
+        video_metadata=metadata,
+    )
 
 
 # ── Article ───────────────────────────────────────────────────

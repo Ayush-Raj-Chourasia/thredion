@@ -128,7 +128,7 @@ Return ONLY this JSON structure (no markdown):{{
         logger.info("📡 Calling Groq API...")
         
         response = client.chat.completions.create(
-            model="mixtral-8x7b-32768",  # Free, powerful model
+            model="llama-3.3-70b-versatile",  # Available active model
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_message}
