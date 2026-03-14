@@ -103,7 +103,7 @@ def normalize_twitter_url(url: str) -> str:
     username_match = re.search(r"twitter\.com/([\w]+)/status/", url)
     username = username_match.group(1) if username_match else "unknown"
     
-    return f"https://twitter.com/{username}/status/{tweet_id}"
+    return f"https://twitter.com/{username}/status/{tweet_id}", username, tweet_id
 
 
 # ── LAYER 1: Tweet Text Extraction (Fastest, Always Works) ────────────────
@@ -111,7 +111,7 @@ def normalize_twitter_url(url: str) -> str:
 
 def extract_tweet_text_first(url: str) -> Optional[TwitterResult]:
     """
-    LAYER 1: Extract tweet text using oEmbed and meta scraping.
+    LAYER 1: Extract tweet text using oEmbed, fxtwitter, and meta scraping.
     
     This method:
     - Works for public tweets (95%+ success rate)
@@ -125,27 +125,39 @@ def extract_tweet_text_first(url: str) -> Optional[TwitterResult]:
     start_time = datetime.utcnow()
     
     try:
-        normalized_url = normalize_twitter_url(url)
+        normalized_url, expected_username, tweet_id = normalize_twitter_url(url)
     except ValueError as e:
         logger.warning(f"Could not normalize Twitter URL {url}: {e}")
         return None
     
-    # Try method 1: oEmbed endpoint
-    result = _try_twitter_oembed(normalized_url)
+    # Try method 1: fxtwitter.com API (more reliable than publish.twitter.com)
+    result = _try_fxtwitter(tweet_id, expected_username)
     if result:
         extraction_time = int((datetime.utcnow() - start_time).total_seconds() * 1000)
         result["extraction_time_ms"] = extraction_time
         result["success"] = True
-        logger.info(f"✅ Twitter oEmbed succeeded for {normalized_url}")
+        result["canonical_url"] = normalized_url
+        logger.info(f"fxtwitter succeeded for {normalized_url}")
         return TwitterResult(**result)
     
-    # Try method 2: Meta tag scraping
+    # Try method 2: oEmbed endpoint (validate author matches)
+    result = _try_twitter_oembed(normalized_url, expected_username)
+    if result:
+        extraction_time = int((datetime.utcnow() - start_time).total_seconds() * 1000)
+        result["extraction_time_ms"] = extraction_time
+        result["success"] = True
+        result["canonical_url"] = normalized_url
+        logger.info(f"Twitter oEmbed succeeded for {normalized_url}")
+        return TwitterResult(**result)
+    
+    # Try method 3: Meta tag scraping
     result = _try_twitter_meta_scraping(normalized_url)
     if result:
         extraction_time = int((datetime.utcnow() - start_time).total_seconds() * 1000)
         result["extraction_time_ms"] = extraction_time
         result["success"] = True
-        logger.info(f"✅ Twitter meta scraping succeeded for {normalized_url}")
+        result["canonical_url"] = normalized_url
+        logger.info(f"Twitter meta scraping succeeded for {normalized_url}")
         return TwitterResult(**result)
     
     # Both methods failed - likely protected or deleted
@@ -153,8 +165,45 @@ def extract_tweet_text_first(url: str) -> Optional[TwitterResult]:
     return None
 
 
-def _try_twitter_oembed(url: str) -> Optional[Dict[str, Any]]:
-    """Try Twitter oEmbed endpoint (official, no auth required)."""
+def _try_fxtwitter(tweet_id: str, expected_username: str) -> Optional[Dict[str, Any]]:
+    """Try fxtwitter.com API (more reliable than publish.twitter.com)."""
+    try:
+        # fxtwitter provides a JSON API at api.fxtwitter.com
+        api_url = f"https://api.fxtwitter.com/{expected_username}/status/{tweet_id}"
+        resp = requests.get(api_url, headers=HEADERS, timeout=5)
+        
+        if resp.status_code == 200:
+            data = resp.json()
+            tweet_data = data.get("tweet", {})
+            tweet_text = tweet_data.get("text", "")
+            author_name = tweet_data.get("author", {}).get("name", "")
+            author_handle = tweet_data.get("author", {}).get("screen_name", "")
+            
+            if tweet_text and len(tweet_text.strip()) > 5:
+                return {
+                    "title": tweet_text[:100] if tweet_text else "Tweet",
+                    "content": tweet_text,
+                    "thumbnail_url": tweet_data.get("media", {}).get("photos", [{}])[0].get("url", "") if tweet_data.get("media") else "",
+                    "author_name": author_name,
+                    "username": author_handle or expected_username,
+                    "source_type": "post_text_only",
+                    "transcript_length": len(tweet_text),
+                    "has_media": bool(tweet_data.get("media")),
+                    "has_video": bool(tweet_data.get("media", {}).get("videos")),
+                }
+    except Exception as e:
+        logger.debug(f"fxtwitter failed: {e}")
+    
+    return None
+
+
+def _try_twitter_oembed(url: str, expected_username: str = "") -> Optional[Dict[str, Any]]:
+    """Try Twitter oEmbed endpoint (official, no auth required).
+    
+    Added validation: if the returned author doesn't match the expected username,
+    the result is likely for a different tweet (Twitter returns cached/stale data
+    for deleted tweets). In that case, reject the result.
+    """
     try:
         resp = requests.get(
             f"https://publish.twitter.com/oembed?url={url}&omit_script=true",
@@ -166,21 +215,33 @@ def _try_twitter_oembed(url: str) -> Optional[Dict[str, Any]]:
             data = resp.json()
             html = data.get("html", "")
             
+            # Validate: check if author matches expected username
+            author_url = data.get("author_url", "")
+            returned_author = author_url.rstrip("/").split("/")[-1].lower() if author_url else ""
+            
+            if expected_username and returned_author and returned_author != expected_username.lower():
+                logger.warning(f"oEmbed returned wrong author: expected @{expected_username}, got @{returned_author}. Rejecting.")
+                return None
+            
             # Parse tweet text from HTML
-            # Format: <p>Text...</p>
             soup = BeautifulSoup(html, "html.parser")
             tweet_text_elem = soup.find("p")
             tweet_text = tweet_text_elem.get_text() if tweet_text_elem else ""
+            
+            # Validate: content should be meaningful
+            if not tweet_text or len(tweet_text.strip()) < 5:
+                logger.debug(f"oEmbed returned empty/tiny text, rejecting")
+                return None
             
             return {
                 "title": tweet_text[:100] if tweet_text else "Tweet",
                 "content": tweet_text,
                 "thumbnail_url": data.get("thumbnail_url", ""),
                 "author_name": data.get("author_name", ""),
-                "username": data.get("author_name", "").replace("@", ""),
+                "username": returned_author or expected_username,
                 "source_type": "post_text_only",
                 "transcript_length": len(tweet_text),
-                "has_media": False,  # oEmbed doesn't include media status
+                "has_media": False,
             }
     
     except Exception as e:
@@ -393,7 +454,7 @@ def extract_twitter(url: str) -> TwitterResult:
     # Layer 1: Extract tweet text (MUST DO)
     result = extract_tweet_text_first(url)
     if not result:
-        logger.warning(f"⚠️ Twitter: Tweet text extraction failed for {url}")
+        logger.warning(f"Twitter: Tweet text extraction failed for {url}")
         return extract_minimal(url)
     
     # Layer 2: Detect if media present
@@ -406,12 +467,12 @@ def extract_twitter(url: str) -> TwitterResult:
     if result.has_media:
         media_result = extract_with_media_download(url)
         if media_result:
-            logger.info(f"✅ Twitter media extracted successfully")
+            logger.info(f"Twitter media extracted successfully")
             media_result.content = result.content  # Keep original tweet text too
             return media_result
         else:
             # Media download failed, but we have tweet text - that's OK
-            logger.info(f"⚠️ Twitter media download failed, returning text-only gracefully")
+            logger.info(f"Twitter media download failed, returning text-only gracefully")
             result.source_type = "post_text_only"
             result.media_processed = False
             result.media_not_processed_reason = "Media download failed; tweet text available"
@@ -420,7 +481,7 @@ def extract_twitter(url: str) -> TwitterResult:
     # No media detected, return tweet text
     result.source_type = "post_text_only"
     result.media_processed = False
-    logger.info(f"✅ Twitter: Text-only extraction (no media detected)")
+    logger.info(f"Twitter: Text-only extraction (no media detected)")
     return result
 
 

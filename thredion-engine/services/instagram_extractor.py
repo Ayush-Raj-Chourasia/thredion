@@ -95,8 +95,12 @@ def normalize_instagram_url(url: str) -> str:
     if not post_id:
         raise ValueError(f"Could not extract Instagram post ID from URL: {url}")
     
-    # Return canonical form
-    return f"https://www.instagram.com/p/{post_id}/"
+    # Check if it's a reel or a post and preserve the type
+    is_reel = "/reel/" in url.lower()
+    path_type = "reel" if is_reel else "p"
+    
+    # Return canonical form preserving reel/post distinction
+    return f"https://www.instagram.com/{path_type}/{post_id}/"
 
 
 # ── LAYER 1: Metadata & Caption Extraction (Fastest, Works ~95% for Public) ────────────────
@@ -127,7 +131,8 @@ def extract_with_metadata_first(url: str) -> Optional[InstagramResult]:
     if result:
         extraction_time = int((datetime.utcnow() - start_time).total_seconds() * 1000)
         result["extraction_time_ms"] = extraction_time
-        logger.info(f"✅ noembed succeeded for {post_id}")
+        result["success"] = True
+        logger.info(f"noembed succeeded for {post_id}")
         return InstagramResult(**result)
     
     # Try method 2: oEmbed endpoint
@@ -135,7 +140,8 @@ def extract_with_metadata_first(url: str) -> Optional[InstagramResult]:
     if result:
         extraction_time = int((datetime.utcnow() - start_time).total_seconds() * 1000)
         result["extraction_time_ms"] = extraction_time
-        logger.info(f"✅ oEmbed succeeded for {post_id}")
+        result["success"] = True
+        logger.info(f"oEmbed succeeded for {post_id}")
         return InstagramResult(**result)
     
     # Try method 3: Meta tag scraping (direct HTML fetch)
@@ -143,7 +149,8 @@ def extract_with_metadata_first(url: str) -> Optional[InstagramResult]:
     if result:
         extraction_time = int((datetime.utcnow() - start_time).total_seconds() * 1000)
         result["extraction_time_ms"] = extraction_time
-        logger.info(f"✅ Meta scraping succeeded for {post_id}")
+        result["success"] = True
+        logger.info(f"Meta scraping succeeded for {post_id}")
         return InstagramResult(**result)
     
     # All methods failed - likely private or deleted
@@ -275,19 +282,23 @@ def extract_with_yt_dlp_media(url: str) -> Optional[InstagramResult]:
             info = ydl.extract_info(url, download=False)
             
             # If we got here, media is accessible
-            logger.info(f"✅ yt-dlp Media download succeeded for {url}")
+            logger.info(f"yt-dlp media info succeeded for {url}")
             
+            description = info.get("description", "")
             extraction_time = int((datetime.utcnow() - start_time).total_seconds() * 1000)
+            
+            # If we have a description/caption, this IS a success
+            has_content = bool(description and len(description.strip()) > 5)
             
             return InstagramResult(
                 title=info.get("title", "Instagram Post"),
-                content=info.get("description", ""),
+                content=description,
                 thumbnail_url=info.get("thumbnail", ""),
-                source_type="media_accessible",  # Media is available for transcription
-                transcript_length=len(info.get("description", "")),
+                source_type="caption_only" if has_content else "media_accessible",
+                transcript_length=len(description),
                 extraction_time_ms=extraction_time,
                 is_video=True if info.get("ext") in ["mp4", "webm"] else False,
-                success=True,  # We did extract content!
+                success=has_content,  # Success if we got meaningful caption
             )
     
     except Exception as e:
@@ -372,21 +383,21 @@ def extract_instagram(url: str) -> InstagramResult:
     # Layer 1: Try metadata/caption extraction first
     result = extract_with_metadata_first(url)
     if result:
-        logger.info(f"✅ Instagram Layer 1 succeeded: {result.source_type}")
+        logger.info(f"Instagram Layer 1 succeeded: {result.source_type}")
         return result
     
     # Layer 2: Try media download (optional, low success)
     # Only do this if we have signals it's worth trying
     result = extract_with_yt_dlp_media(url)
     if result:
-        logger.info(f"✅ Instagram Layer 2 (media download) succeeded")
+        logger.info(f"Instagram Layer 2 (media download) succeeded")
         return result
     
     # Layer 3: Paid API (expensive, use carefully)
     # Skip for MVP - would check budget guardrails
     
     # Layer 4: Minimal metadata
-    logger.warning(f"⚠️ Instagram: Falling back to minimal metadata for {url}")
+    logger.warning(f"Instagram: Falling back to minimal metadata for {url}")
     return extract_metadata_minimal(url)
 
 

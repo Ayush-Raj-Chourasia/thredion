@@ -16,6 +16,8 @@ from typing import Dict, Optional, Any
 from datetime import datetime, timedelta
 from dataclasses import dataclass
 
+from db.models import Memory
+
 logger = logging.getLogger(__name__)
 
 
@@ -210,34 +212,63 @@ class JobDeduplicator:
     # ── Placeholder database query methods ────────────────────────────
     
     def _query_completed(self, user_phone: str, canonical_url: str) -> Optional[Dict]:
-        """Query for completed job (placeholder)."""
-        # In production:
-        # return db.query(Memory).filter(
-        #     Memory.user_phone == user_phone,
-        #     Memory.canonical_url == canonical_url,
-        #     Memory.job_status == "completed"
-        # ).first()
+        """Query for completed job."""
+        if not self.db:
+            return None
+        try:
+            memory = self.db.query(Memory).filter(
+                Memory.user_phone == user_phone,
+                Memory.canonical_url == canonical_url,
+                Memory.job_status == "completed"
+            ).first()
+            if memory:
+                return {
+                    "id": memory.id,
+                    "source_type": memory.source_type,
+                    "created_at": memory.created_at,
+                }
+        except Exception as e:
+            logger.debug(f"Dedup completed query error: {e}")
         return None
     
     def _query_processing(self, user_phone: str, canonical_url: str) -> Optional[Dict]:
-        """Query for job in progress (placeholder)."""
-        # In production:
-        # return db.query(Memory).filter(
-        #     Memory.user_phone == user_phone,
-        #     Memory.canonical_url == canonical_url,
-        #     Memory.job_status.in_(["queued", "extracting", "transcribing", "classifying"])
-        # ).first()
+        """Query for job in progress."""
+        if not self.db:
+            return None
+        try:
+            memory = self.db.query(Memory).filter(
+                Memory.user_phone == user_phone,
+                Memory.canonical_url == canonical_url,
+                Memory.job_status.in_(["queued", "extracting", "transcribing", "classifying"])
+            ).first()
+            if memory:
+                return {
+                    "job_id": memory.job_id,
+                    "job_status": memory.job_status,
+                }
+        except Exception as e:
+            logger.debug(f"Dedup processing query error: {e}")
         return None
     
     def _query_recent_failure(self, user_phone: str, canonical_url: str) -> Optional[Dict]:
-        """Query for recent permanent failure (placeholder)."""
-        # In production:
-        # return db.query(Memory).filter(
-        #     Memory.user_phone == user_phone,
-        #     Memory.canonical_url == canonical_url,
-        #     Memory.failure_class == "permanent",
-        #     Memory.last_failure_at > datetime.utcnow() - timedelta(hours=24)
-        # ).first()
+        """Query for recent permanent failure."""
+        if not self.db:
+            return None
+        try:
+            cutoff = datetime.utcnow() - timedelta(hours=24)
+            memory = self.db.query(Memory).filter(
+                Memory.user_phone == user_phone,
+                Memory.canonical_url == canonical_url,
+                Memory.failure_class == "permanent",
+                Memory.last_failure_at > cutoff
+            ).first()
+            if memory:
+                return {
+                    "failure_reason": memory.failure_reason,
+                    "last_failure_at": memory.last_failure_at,
+                }
+        except Exception as e:
+            logger.debug(f"Dedup failure query error: {e}")
         return None
 
 

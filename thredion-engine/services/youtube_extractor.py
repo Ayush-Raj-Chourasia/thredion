@@ -18,6 +18,7 @@ import logging
 import hashlib
 import asyncio
 import os
+import time
 from typing import Optional, Dict, Any
 from dataclasses import dataclass
 from datetime import datetime
@@ -122,14 +123,21 @@ def extract_with_transcript_api(video_id: str) -> Optional[YouTubeResult]:
         # Combine all segments
         full_text = " ".join([item.text if hasattr(item, 'text') else str(item) for item in transcript_items])
         
-        if not full_text:
-            logger.info(f"Video {video_id}: Empty transcript, trying Layer 2")
+        if not full_text or len(full_text.strip()) < 5:
+            logger.info(f"Video {video_id}: Empty/tiny transcript, trying Layer 2")
             return None
         
-        # Get metadata via yt-dlp (quick, no download)
-        metadata = _get_youtube_metadata_quick(video_id)
+        # Get metadata via yt-dlp (quick, no download) — may fail if IP blocked
+        try:
+            metadata = _get_youtube_metadata_quick(video_id)
+        except Exception:
+            metadata = {
+                "title": "", "thumbnail_url": f"https://img.youtube.com/vi/{video_id}/maxresdefault.jpg",
+                "duration": 0, "channel": "",
+            }
         
         extraction_time = int((datetime.utcnow() - start_time).total_seconds() * 1000)
+        content_hash = hashlib.sha256(full_text.encode()).hexdigest()
         
         return YouTubeResult(
             title=metadata.get("title", ""),
@@ -138,15 +146,14 @@ def extract_with_transcript_api(video_id: str) -> Optional[YouTubeResult]:
             duration_seconds=metadata.get("duration", 0),
             video_id=video_id,
             channel_name=metadata.get("channel", ""),
-            source_type="yt_transcript_api",  # ✅ We got it from official subtitles
+            source_type="yt_transcript_api",
             transcript_length=len(full_text),
             extraction_time_ms=extraction_time,
-            detected_language="en",  # youtube-transcript-api returns English mostly
+            detected_language="en",
             success=True,
         )
     
     except (TranscriptsDisabled, NoTranscriptFound):
-        # No subtitles available, return None to try Layer 2
         logger.info(f"Video {video_id}: No transcripts found, trying Layer 2 (yt-dlp subtitles)")
         return None
     
@@ -420,30 +427,35 @@ def extract_youtube(url: str) -> YouTubeResult:
     # Layer 1: Try transcript-first (fastest, free, no risk)
     result = extract_with_transcript_api(video_id)
     if result:
-        logger.info(f"✅ Layer 1 (transcript-api) succeeded for {video_id}")
+        logger.info(f"Layer 1 (transcript-api) succeeded for {video_id}")
         return result
+    
+    # Delay before Layer 2 to reduce YouTube IP ban risk
+    time.sleep(1.5)
     
     # Layer 2: Try yt-dlp subtitles
     result = extract_with_ytdlp_subtitles(video_id)
     if result:
-        logger.info(f"✅ Layer 2 (yt-dlp subtitles) succeeded for {video_id}")
+        logger.info(f"Layer 2 (yt-dlp subtitles) succeeded for {video_id}")
         return result
     
-    # Layer 3: Queue local ASR (async)
-    metadata = _get_youtube_metadata_quick(video_id)
+    # Layer 3: Queue local ASR (async) - only for short videos
+    try:
+        metadata = _get_youtube_metadata_quick(video_id)
+    except Exception:
+        metadata = {"duration": 0}
     duration = metadata.get("duration", 0)
     
     if duration > 0 and duration <= 300:  # Short video, <5 min
-        logger.info(f"⏳ Layer 3 (local ASR): Queueing {video_id} for transcription")
-        # In real code, this would queue the job
+        logger.info(f"Layer 3 (local ASR): Queueing {video_id} for transcription")
         result = extract_with_local_asr_queued(video_id)
-        if result:
+        if result and result.success:
             return result
     
     # Layer 4: Could try cookies here if enabled, but skip for MVP
     
     # Layer 5: Graceful degradation
-    logger.warning(f"⚠️ Falling back to metadata-only for {video_id}")
+    logger.warning(f"Falling back to metadata-only for {video_id}")
     return extract_metadata_only(video_id)
 
 

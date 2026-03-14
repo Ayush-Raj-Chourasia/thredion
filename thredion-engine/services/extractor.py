@@ -14,6 +14,11 @@ import requests
 import yt_dlp
 from bs4 import BeautifulSoup
 
+# Import specialized extractors
+from services.youtube_extractor import extract_youtube as _youtube_extract
+from services.instagram_extractor import extract_instagram as _instagram_extract
+from services.twitter_extractor import extract_twitter as _twitter_extract
+
 logger = logging.getLogger(__name__)
 
 HEADERS = {
@@ -180,7 +185,30 @@ def _parse_instagram_url(url: str) -> dict:
 
 
 def _extract_instagram(url: str) -> ExtractedContent:
-    """Extract content from an Instagram post/reel URL."""
+    """Extract content from an Instagram post/reel URL using specialized extractor."""
+    try:
+        result = _instagram_extract(url)
+        
+        content = result.content or result.title or ""
+        if not content:
+            # Fallback to URL-structure-based extraction
+            url_info = _parse_instagram_url(url)
+            content = f"Instagram {url_info['type']} — Shared via Instagram."
+        
+        return ExtractedContent(
+            platform="instagram",
+            title=(result.title or "Instagram Post")[:512],
+            content=content[:2000],
+            thumbnail_url=result.thumbnail_url or "",
+            url=url,
+        )
+    except Exception as e:
+        logger.warning(f"Specialized Instagram extractor failed: {e}, falling back")
+        return _extract_instagram_legacy(url)
+
+
+def _extract_instagram_legacy(url: str) -> ExtractedContent:
+    """Legacy Instagram extraction as fallback."""
     url_info = _parse_instagram_url(url)
     content_type = url_info["type"]
     shortcode = url_info["shortcode"]
@@ -316,8 +344,30 @@ def _extract_instagram(url: str) -> ExtractedContent:
 # ── Twitter / X ───────────────────────────────────────────────
 
 def _extract_twitter(url: str) -> ExtractedContent:
-    """Extract content from a Twitter/X post URL."""
-    # Normalize x.com → twitter.com for oEmbed
+    """Extract content from a Twitter/X post URL using specialized extractor."""
+    try:
+        result = _twitter_extract(url)
+        
+        content = result.content or ""
+        title = result.title or "Tweet"
+        if result.author_name:
+            title = f"Tweet by {result.author_name}"
+        
+        return ExtractedContent(
+            platform="twitter",
+            title=title[:512],
+            content=content[:2000],
+            thumbnail_url=result.thumbnail_url or "",
+            url=url,
+        )
+    except Exception as e:
+        logger.warning(f"Specialized Twitter extractor failed: {e}, falling back")
+        return _extract_twitter_legacy(url)
+
+
+def _extract_twitter_legacy(url: str) -> ExtractedContent:
+    """Legacy Twitter extraction as fallback."""
+    # Normalize x.com -> twitter.com for oEmbed
     normalized = url.replace("x.com", "twitter.com")
     try:
         oembed_url = f"https://publish.twitter.com/oembed?url={normalized}&omit_script=true"
@@ -348,10 +398,33 @@ def _extract_twitter(url: str) -> ExtractedContent:
 
 def _extract_youtube(url: str) -> ExtractedContent:
     """
-    Extract content from a YouTube URL including TRANSCRIPTION.
-    For short videos: Uses local faster-whisper for instant transcription.
-    For longer videos: Returns metadata (transcription queued async).
+    Extract content from a YouTube URL using the specialized extractor.
+    This wraps the new 5-layer extraction pipeline.
     """
+    try:
+        result = _youtube_extract(url)
+        
+        content = result.content or ""
+        if not content:
+            # Fallback to title/description
+            content = result.title or url
+        
+        return ExtractedContent(
+            platform="youtube",
+            title=(result.title or "YouTube Video")[:512],
+            content=content[:3000],
+            thumbnail_url=result.thumbnail_url or f"https://img.youtube.com/vi/{result.video_id}/maxresdefault.jpg",
+            url=url,
+            is_video=True,
+            duration_seconds=result.duration_seconds or result.duration_sec or 0,
+        )
+    except Exception as e:
+        logger.warning(f"Specialized YouTube extractor failed: {e}, falling back")
+        return _extract_youtube_legacy(url)
+
+
+def _extract_youtube_legacy(url: str) -> ExtractedContent:
+    """Legacy YouTube extraction as fallback."""
     metadata = {
         'uploader': '',
         'description': '',
