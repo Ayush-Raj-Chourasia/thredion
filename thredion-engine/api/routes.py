@@ -211,6 +211,67 @@ def process_endpoint(
         raise HTTPException(status_code=500, detail=f"Processing failed: {str(e)}")
 
 
+@router.post("/process-video")
+async def process_video_endpoint(
+    url: str = Query(..., description="Video URL to process"),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Process a VIDEO URL with transcription.
+    Handles both short (instant) and long (async) videos.
+    """
+    from services.pipeline import process_video_url_async
+    
+    url = url.strip()
+    if not re.match(r'^https?://', url):
+        raise HTTPException(status_code=400, detail="Invalid URL — must start with http:// or https://")
+    
+    try:
+        result = await process_video_url_async(url, user.phone, db)
+        
+        if result.get('status') == 'completed':
+            notify_change("memory_added", str(result.get("memory_id", "")))
+        elif result.get('status') == 'processing':
+            notify_change("job_queued", result.get("job_id", ""))
+        
+        return result
+    except Exception as e:
+        logger.error(f"Video pipeline error for {url}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Processing failed: {str(e)}")
+
+
+@router.get("/job/{job_id}")
+def get_job_status(
+    job_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Check status of an async transcription job."""
+    memory = db.query(Memory).filter(
+        Memory.transcription_job_id == job_id,
+        Memory.user_phone == user.phone
+    ).first()
+    
+    if not memory:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    return {
+        'job_id': job_id,
+        'memory_id': memory.id,
+        'status': memory.transcription_status,
+        'progress': 'processing' if memory.transcription_status == 'processing' else 'done',
+        'message': f"Transcription status: {memory.transcription_status}",
+        'transcript': memory.transcript if memory.transcription_status == 'completed' and memory.transcript else None,
+        'summary': memory.summary if memory.transcription_status == 'completed' else None,
+        'cognitive_mode': memory.cognitive_mode if memory.transcription_status == 'completed' else None,
+        'bucket': memory.bucket if memory.transcription_status == 'completed' else None,
+        'error': memory.processing_error if memory.transcription_status == 'failed' else None,
+        'created_at': memory.created_at.isoformat() if memory.created_at else None,
+        'processed_at': memory.processed_at.isoformat() if memory.processed_at else None,
+    }
+
+
 # ── Knowledge Graph ───────────────────────────────────────────
 
 

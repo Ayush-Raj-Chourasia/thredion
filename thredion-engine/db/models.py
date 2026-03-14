@@ -52,9 +52,9 @@ class Memory(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     url = Column(String(2048), nullable=False, index=True)
-    platform = Column(String(50), default="unknown")       # instagram, twitter, article
+    platform = Column(String(50), default="unknown")       # instagram, twitter, article, youtube
     title = Column(String(512), default="")
-    content = Column(Text, default="")                       # original caption / text
+    content = Column(Text, default="")                       # original caption / text / description
     summary = Column(Text, default="")                       # AI-generated summary
     category = Column(String(100), default="Uncategorized")
     tags = Column(Text, default="[]")                        # JSON list
@@ -65,6 +65,28 @@ class Memory(Base):
     thumbnail_url = Column(String(2048), default="")
     user_phone = Column(String(50), default="default", index=True)
     created_at = Column(DateTime, default=_utcnow)
+    
+    # ── NEW: Video Transcription Fields ────────────────────────
+    transcript = Column(Text, default="", nullable=True)     # Full video transcript
+    transcript_length = Column(Integer, default=0)           # Character count of transcript
+    transcript_source = Column(String(20), default="pending") # local|groq|openai|failed
+    video_duration = Column(Integer, default=0)              # Duration in seconds
+    is_video = Column(Boolean, default=False)                # Flag: is this video content?
+    
+    # ── NEW: Cognitive Structure Fields ────────────────────────
+    cognitive_mode = Column(String(20), default="learn")     # learn|think|reflect
+    title_generated = Column(String(512), default="")        # AI-generated title
+    key_points = Column(Text, default="[]")                  # JSON array of key insights
+    bucket = Column(String(100), default="Uncategorized")    # Semantic bucket/category
+    actionability_score = Column(Float, default=0.0)         # 0-1 score
+    emotional_tone = Column(String(50), default="")          # neutral|excited|anxious|etc
+    confidence_score = Column(Float, default=0.0)            # 0-1 confidence
+    
+    # ── NEW: Async Job Tracking ────────────────────────────────
+    transcription_job_id = Column(String(100), default=None, nullable=True, index=True)
+    transcription_status = Column(String(20), default="pending")  # pending|processing|completed|failed
+    processing_error = Column(Text, default=None, nullable=True)
+    processed_at = Column(DateTime, default=None, nullable=True)
 
     __table_args__ = (
         UniqueConstraint("url", "user_phone", name="uq_memory_url_user"),

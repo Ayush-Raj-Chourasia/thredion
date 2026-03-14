@@ -1,14 +1,17 @@
 """
 Thredion Engine — Content Extractor
-Extracts meaningful content from Instagram, Twitter/X, and article URLs.
+Extracts meaningful content from Instagram, Twitter/X, YouTube, and article URLs.
+Enhanced to support video transcription routing.
 """
 
 import re
 import logging
-from typing import Optional
+import asyncio
+from typing import Optional, Dict, Any
 from dataclasses import dataclass
 
 import requests
+import yt_dlp
 from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
@@ -31,6 +34,9 @@ class ExtractedContent:
     content: str
     thumbnail_url: str
     url: str
+    duration_seconds: int = 0  # For videos
+    is_video: bool = False  # Flag for video content
+    video_metadata: dict = None  # Extra video metadata
 
 
 def detect_platform(url: str) -> str:
@@ -312,19 +318,40 @@ def _extract_twitter(url: str) -> ExtractedContent:
 # ── YouTube ───────────────────────────────────────────────────
 
 def _extract_youtube(url: str) -> ExtractedContent:
-    """Extract content from a YouTube URL."""
+    """
+    Extract content from a YouTube URL.
+    Enhanced to get duration and metadata for transcription routing.
+    """
     try:
+        # Try oembed first (fast)
         oembed_url = f"https://www.youtube.com/oembed?url={url}&format=json"
         resp = requests.get(oembed_url, headers=HEADERS, timeout=10)
         if resp.status_code == 200:
             data = resp.json()
-            return ExtractedContent(
+            basic_result = ExtractedContent(
                 platform="youtube",
                 title=data.get("title", "YouTube Video")[:512],
                 content=data.get("title", "")[:2000],
                 thumbnail_url=data.get("thumbnail_url", ""),
                 url=url,
+                is_video=True,
             )
+            
+            # Try to get duration from yt-dlp
+            try:
+                with yt_dlp.YoutubeDL({'quiet': True, 'no_warnings': True}) as ydl:
+                    info = ydl.extract_info(url, download=False)
+                    duration = int(info.get('duration', 0))
+                    basic_result.duration_seconds = duration
+                    basic_result.video_metadata = {
+                        'uploader': info.get('uploader', ''),
+                        'description': info.get('description', '')[:500],
+                        'view_count': info.get('view_count', 0),
+                    }
+            except Exception as e:
+                logger.debug(f"Failed to get YouTube duration: {e}")
+            
+            return basic_result
     except Exception:
         pass
 

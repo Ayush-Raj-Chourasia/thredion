@@ -23,6 +23,22 @@ class Settings:
     # ── OpenAI ────────────────────────────────────────────────
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
 
+    # ── Groq Cloud LLM (FREE TIER) ────────────────────────────
+    GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
+
+    # ── HuggingFace (Optional) ────────────────────────────────
+    HF_API_TOKEN: str = os.getenv("HF_API_TOKEN", "")
+    USE_HF_INFERENCE: bool = os.getenv("USE_HF_INFERENCE", "false").lower() == "true"
+
+    # ── Azure Queue Storage (for async jobs) ──────────────────
+    AZURE_QUEUE_CONNECTION_STRING: str = os.getenv("AZURE_QUEUE_CONNECTION_STRING", "")
+    AZURE_QUEUE_NAME: str = os.getenv("AZURE_QUEUE_NAME", "video-transcription-jobs")
+
+    # ── Video Processing Thresholds ───────────────────────────
+    SHORT_VIDEO_MAX_DURATION: int = int(os.getenv("SHORT_VIDEO_MAX_DURATION", "300"))  # 5 min
+    MEDIUM_VIDEO_MAX_DURATION: int = int(os.getenv("MEDIUM_VIDEO_MAX_DURATION", "1800"))  # 30 min
+    WHISPER_MODEL_SIZE: str = os.getenv("WHISPER_MODEL_SIZE", "base")  # base, tiny, small
+
     # ── Twilio WhatsApp ───────────────────────────────────────
     TWILIO_ACCOUNT_SID: str = os.getenv("TWILIO_ACCOUNT_SID", "")
     TWILIO_AUTH_TOKEN: str = os.getenv("TWILIO_AUTH_TOKEN", "")

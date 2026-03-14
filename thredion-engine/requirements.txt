@@ -21,6 +21,17 @@ openai==1.50.0
 # ── Content Extraction ───────────────────────────────────
 requests==2.32.3
 beautifulsoup4==4.12.3
+yt-dlp==2024.1.1
+
+# ── Video Transcription ───────────────────────────────────
+faster-whisper==1.0.1
+pydub==0.25.1
+
+# ── LLM (Groq Cloud - Free) ──────────────────────────────
+groq==0.4.2
+
+# ── Async Queue (Azure) ───────────────────────────────────
+azure-storage-queue==12.18.0
 
 # ── Config ────────────────────────────────────────────────
 python-dotenv==1.0.1
