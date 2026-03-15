@@ -33,11 +33,12 @@ def get_db():
 
 
 def init_db():
-    """Create all tables defined in models."""
+    """Create all tables defined in models. Fail gracefully in production."""
     import os
     import logging
     
     logger = logging.getLogger("thredion")
+    is_production = os.getenv("ENVIRONMENT") == "production" or "railway" in os.getenv("HOSTNAME", "").lower()
     
     # SQLite-specific reset (delete file)
     if os.getenv("RESET_DATABASE") == "true" and "sqlite" in settings.DATABASE_URL.lower():
@@ -52,5 +53,17 @@ def init_db():
     if os.getenv("RESET_DATABASE") == "true" and "postgresql" in settings.DATABASE_URL.lower():
         logger.warning("RESET_DATABASE=true: PostgreSQL reset not implemented (manual drop required for safety)")
     
-    from db.models import User, OTPCode, Memory, Connection, ResurfacedMemory  # noqa: F401
-    Base.metadata.create_all(bind=engine)
+    try:
+        from db.models import User, OTPCode, Memory, Connection, ResurfacedMemory  # noqa: F401
+        Base.metadata.create_all(bind=engine)
+        logger.info("✓ Database tables ensured to exist")
+    except Exception as e:
+        if is_production:
+            # In production (Railway/Supabase), tables should already exist from migration
+            # Log the error but don't crash the app
+            logger.warning(f"⚠ Could not create/verify database tables (expected in production): {type(e).__name__}: {str(e)}")
+            logger.warning("  Tables should exist from Supabase migration. If missing, run migrations manually.")
+        else:
+            # In development, this is a real error
+            logger.error(f"✗ Failed to initialize database: {e}", exc_info=True)
+            raise
