@@ -1,6 +1,9 @@
 """
 Thredion Engine — Main Application
 FastAPI entry point for the AI Cognitive Memory Engine.
+
+IMPORTANT: Railway must have SUPABASE_DB_PASSWORD environment variable set.
+Value: @Au$ATxV/5FJY*A (add to Railway Variables tab)
 """
 
 import logging
