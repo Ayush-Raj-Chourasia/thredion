@@ -1,6 +1,6 @@
 
 from datetime import datetime
-from typing import Optional, List, Literal
+from typing import Optional, List, Literal, Dict
 from pydantic import BaseModel, Field
 from uuid import UUID
 
@@ -67,7 +67,7 @@ class LLMStructuredOutput(BaseModel):
 # ── Dashboard & API Support ──────
 
 class WeeklySummary(BaseModel):
-    entries_by_mode: dict[str, int]
+    entries_by_mode: Dict[str, int]
     entries_by_bucket: List[dict]
     top_entries: List[CognitiveEntry]
     most_active_bucket: Optional[str]

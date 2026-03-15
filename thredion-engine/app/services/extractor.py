@@ -2,7 +2,7 @@
 import re
 import logging
 import httpx
-from typing import tuple, Optional, dict
+from typing import Tuple, Optional, Dict
 from bs4 import BeautifulSoup
 from readability import Document
 import yt_dlp
@@ -10,7 +10,7 @@ from core.config import settings
 
 logger = logging.getLogger(__name__)
 
-def detect_input_type(text: str) -> tuple[str, Optional[str]]:
+def detect_input_type(text: str) -> Tuple[str, Optional[str]]:
     """
     Detects if the input is a link or raw text.
     Returns: (input_type, url_if_found)
@@ -22,7 +22,7 @@ def detect_input_type(text: str) -> tuple[str, Optional[str]]:
         return ("link", urls[0])
     return ("text", None)
 
-async def extract_content(url: str) -> dict:
+async def extract_content(url: str) -> Dict:
     """
     Universal extractor for various platforms.
     """
@@ -37,7 +37,7 @@ async def extract_content(url: str) -> dict:
     else:
         return await _extract_generic(url)
 
-async def _extract_youtube(url: str) -> dict:
+async def _extract_youtube(url: str) -> Dict:
     """Extracts YouTube metadata using Supadata/SocialKit or yt-dlp fallback."""
     
     # 1. Try Supadata (Excellent for YouTube)
@@ -90,7 +90,7 @@ async def _extract_youtube(url: str) -> dict:
         logger.error(f"YouTube extraction failed: {e}")
         return {"source_type": "youtube", "title": "YouTube Video", "raw_text": "Failed to extract content", "url": url}
 
-async def _extract_twitter(url: str) -> dict:
+async def _extract_twitter(url: str) -> Dict:
     """Extracts Tweet content using Supadata or meta tags fallback."""
     if settings.SUPADATA_API_KEY:
         try:
@@ -131,7 +131,7 @@ async def _extract_twitter(url: str) -> dict:
         logger.error(f"Twitter extraction failed: {e}")
         return {"source_type": "twitter", "title": "Twitter", "raw_text": "Failed to extract tweet", "url": url}
 
-async def _extract_instagram(url: str) -> dict:
+async def _extract_instagram(url: str) -> Dict:
     """Extracts Instagram content using SocialKit/Supadata or meta tags fallback."""
     if settings.SOCIALKIT_API_KEY:
         try:
@@ -172,7 +172,7 @@ async def _extract_instagram(url: str) -> dict:
         logger.error(f"Instagram extraction failed: {e}")
         return {"source_type": "instagram", "title": "Instagram", "raw_text": "Failed to extract caption", "url": url}
 
-async def _extract_generic(url: str) -> dict:
+async def _extract_generic(url: str) -> Dict:
     """Extracts clean article text using readability."""
     try:
         async with httpx.AsyncClient(follow_redirects=True, timeout=15.0) as client:
