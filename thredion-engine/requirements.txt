@@ -14,4 +14,4 @@ python-jose
 Passlib[bcrypt]
 sqlalchemy
 psycopg2-binary
-sentence-transformers
+# sentence-transformers

@@ -36,7 +36,7 @@ jobs:
           python keep-warm.py "${{ secrets.RENDER_APP_URL }}"
         continue-on-error: true
       
-      - name: Alternative: Simple curl ping (if Python fails)
+      - name: "Alternative: Simple curl ping (if Python fails)"
         if: failure()
         env:
           APP_URL: ${{ secrets.RENDER_APP_URL }}
