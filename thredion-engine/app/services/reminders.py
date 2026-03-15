@@ -11,43 +11,58 @@ from app.models.schemas import WeeklySummary
 logger = logging.getLogger(__name__)
 
 def generate_weekly_report(phone_number: str) -> str:
-    """Generates a WhatsApp-formatted weekly cognitive summary."""
+    """Generates a WhatsApp-formatted weekly cognitive summary as per spec."""
     user = supabase_client.get_or_create_user(phone_number)
     entries = supabase_client.get_weekly_entries(user.id)
     
     if not entries:
         return "🧠 *Thredion Weekly Recap*\n\nQuiet week! Send me some links, thoughts, or reflections to start building your cognitive layer."
 
-    # Stats
-    stats = {"learn": 0, "think": 0, "reflect": 0}
-    for e in entries:
-        stats[e.cognitive_mode] += 1
-        
-    # Find top actionable item
-    actionable_items = sorted(
-        [e for e in entries if e.actionability_score > 0.6], 
-        key=lambda x: x.actionability_score, 
-        reverse=True
-    )
-    
-    top_piece = actionable_items[0] if actionable_items else entries[0]
+    learn_entries = [e for e in entries if e.cognitive_mode == 'learn']
+    think_entries = [e for e in entries if e.cognitive_mode == 'think']
+    reflect_entries = [e for e in entries if e.cognitive_mode == 'reflect']
 
-    report = [
-        "🧠 *Thredion Weekly Recap*",
-        f"_{datetime.now().strftime('%b %d')} recap for your digital mind_",
-        "",
-        "📊 *Your Activity:*",
-        f"• 📚 *Learn:* {stats['learn']} items consumed",
-        f"• 💡 *Think:* {stats['think']} ideas born",
-        f"• 🪞 *Reflect:* {stats['reflect']} inner thoughts",
-        "",
-        "🌟 *Top Actionable Insight:*",
-        f"*{top_piece.title}*",
-        f"_{top_piece.summary[:150]}..._",
-        "",
-        "🔗 View your full dashboard:",
-        f"{settings.FRONTEND_URL}/cognitive"
-    ]
+    report = ["🧠 *Thredion Weekly Recap*", f"_{datetime.now().strftime('%b %d')} - Your Digital Mind_", ""]
+
+    # Section 1: What You Learned
+    report.append("📚 *Section 1: What You Learned*")
+    report.append(f"• Total: {len(learn_entries)} items")
+    if learn_entries:
+        buckets = {}
+        for e in learn_entries:
+            buckets[e.bucket] = buckets.get(e.bucket, 0) + 1
+        bucket_stats = ", ".join([f"{b}({c})" for b, c in sorted(buckets.items(), key=lambda x: x[1], reverse=True)])
+        report.append(f"• Buckets: {bucket_stats}")
+        report.append("• Top Highlights:")
+        for e in learn_entries[:3]:
+            report.append(f"  ↳ _{e.title}_")
+    report.append("")
+
+    # Section 2: What You Thought
+    report.append("💡 *Section 2: What You Thought*")
+    report.append(f"• Total Ideas: {len(think_entries)}")
+    high_action = [e for e in think_entries if e.actionability_score > 0.7]
+    if high_action:
+        report.append(f"• 🔥 *High Actionability:*")
+        for e in high_action[:2]:
+            report.append(f"  ↳ *{e.title}* (Score: {int(e.actionability_score*100)}%)")
+    elif think_entries:
+        report.append(f"• Top Idea: _{think_entries[0].title}_")
+    report.append("")
+
+    # Section 3: What You Reflected On
+    report.append("🪞 *Section 3: What You Reflected On*")
+    report.append(f"• Total Reflections: {len(reflect_entries)}")
+    if reflect_entries:
+        buckets = {}
+        for e in reflect_entries:
+            buckets[e.bucket] = buckets.get(e.bucket, 0) + 1
+        top_bucket = sorted(buckets.items(), key=lambda x: x[1], reverse=True)[0][0]
+        report.append(f"• Most Recurring Theme: *{top_bucket}*")
+        report.append(f"• Summary: _{reflect_entries[0].summary[:100]}..._")
+    
+    report.append("")
+    report.append(f"📊 *Full Dashboard:* {settings.FRONTEND_URL}/cognitive")
     
     return "\n".join(report)
 

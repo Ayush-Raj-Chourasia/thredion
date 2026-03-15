@@ -41,25 +41,12 @@ def transcribe_audio(file_path: str) -> str:
         return _transcribe_openai_fallback(file_path)
 
 async def transcribe_from_url(audio_url: str) -> str:
-    """Downloads audio from a URL and transcribes it, using Transcript24 if available."""
+    """Downloads audio from a URL and transcribes it, using Supadata if available."""
     
-    # 1. Try Transcript24 (Very fast for social URLs)
-    if settings.TRANSCRIPT24_API_KEY:
-        try:
-            logger.info("Using Transcript24 for URL transcription...")
-            async with httpx.AsyncClient(headers={"Authorization": f"Bearer {settings.TRANSCRIPT24_API_KEY}"}, timeout=60.0) as client:
-                resp = await client.post("https://api.transcript24.com/transcribe", json={"url": audio_url})
-                if resp.status_code == 200:
-                    data = resp.json()
-                    # Transcript24 might return immediately or need polling. 
-                    # According to search, it can return a standard JSON object when ready.
-                    return data.get("transcript") or data.get("text", "")
-        except Exception as e:
-            logger.warning(f"Transcript24 failed: {e}")
-
-    # 2. Fallback to Supadata/SocialKit for transcripts
+    # 1. Try Supadata (Excellent for social URLs)
     if settings.SUPADATA_API_KEY:
         try:
+            logger.info("Using Supadata for URL transcription...")
             async with httpx.AsyncClient(headers={"x-api-key": settings.SUPADATA_API_KEY}, timeout=30.0) as client:
                 resp = await client.get(f"https://api.supadata.ai/v1/transcript?url={audio_url}")
                 if resp.status_code == 200:
@@ -67,7 +54,7 @@ async def transcribe_from_url(audio_url: str) -> str:
         except Exception as e:
             logger.warning(f"Supadata transcript failed: {e}")
 
-    # 3. Last fallback: Local or OpenAI
+    # 2. Last fallback: Local or OpenAI
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
             resp = await client.get(audio_url)

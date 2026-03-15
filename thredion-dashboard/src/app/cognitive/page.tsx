@@ -250,17 +250,91 @@ export default function CognitiveDashboard() {
           </div>
         </div>
 
-        {/* Content Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {filteredEntries.map((entry) => (
-            <CognitiveCard key={entry.id} entry={entry} />
-          ))}
+        {/* Sections based on Spec */}
+        <div className="space-y-24">
           
-          {filteredEntries.length === 0 && (
-            <div className="col-span-full py-32 flex flex-col items-center border border-dashed border-white/5 rounded-3xl">
-              <Archive className="w-12 h-12 text-white/10 mb-4" />
-              <p className="text-white/20 font-medium">No cognitive records captured yet.</p>
-            </div>
+          {/* Section 1: What You Learned */}
+          {(activeTab === 'all' || activeTab === 'learn') && (
+            <section>
+              <div className="flex items-center justify-between mb-8">
+                <div>
+                  <h2 className="text-3xl font-bold flex items-center space-x-3">
+                    <BookOpen className="w-8 h-8 text-blue-400" />
+                    <span>What You Learned</span>
+                  </h2>
+                  <p className="text-white/40 mt-2">
+                    {entries.filter(e => e.cognitive_mode === 'learn').length} items captured across {stats?.entries_by_bucket.length || 0} buckets.
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {entries.filter(e => e.cognitive_mode === 'learn').map(entry => (
+                  <CognitiveCard key={entry.id} entry={entry} />
+                ))}
+                {entries.filter(e => e.cognitive_mode === 'learn').length === 0 && (
+                  <div className="col-span-full py-12 border border-dashed border-white/5 rounded-2xl flex flex-col items-center justify-center text-white/20">
+                    <Archive className="w-8 h-8 mb-2" />
+                    <p>No learning material captured yet.</p>
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+
+          {/* Section 2: What You Thought */}
+          {(activeTab === 'all' || activeTab === 'think') && (
+            <section>
+              <div className="flex items-center justify-between mb-8">
+                <div>
+                  <h2 className="text-3xl font-bold flex items-center space-x-3">
+                    <Lightbulb className="w-8 h-8 text-purple-400" />
+                    <span>What You Thought</span>
+                  </h2>
+                  <p className="text-white/40 mt-2">
+                    Spontaneous ideas and frameworks. {entries.filter(e => e.cognitive_mode === 'think' && e.actionability_score > 0.7).length} high-actionability items.
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {entries.filter(e => e.cognitive_mode === 'think').sort((a,b) => b.actionability_score - a.actionability_score).map(entry => (
+                  <CognitiveCard key={entry.id} entry={entry} />
+                ))}
+                {entries.filter(e => e.cognitive_mode === 'think').length === 0 && (
+                  <div className="col-span-full py-12 border border-dashed border-white/5 rounded-2xl flex flex-col items-center justify-center text-white/20">
+                    <Archive className="w-8 h-8 mb-2" />
+                    <p>No original ideas captured yet.</p>
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+
+          {/* Section 3: What You Reflected On */}
+          {(activeTab === 'all' || activeTab === 'reflect') && (
+            <section>
+              <div className="flex items-center justify-between mb-8">
+                <div>
+                  <h2 className="text-3xl font-bold flex items-center space-x-3">
+                    <User className="w-8 h-8 text-pink-400" />
+                    <span>What You Reflected On</span>
+                  </h2>
+                  <p className="text-white/40 mt-2">
+                    Emotional reflections and daily logs. Most recurring theme: {stats?.most_active_bucket || "General"}.
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {entries.filter(e => e.cognitive_mode === 'reflect').map(entry => (
+                  <CognitiveCard key={entry.id} entry={entry} />
+                ))}
+                {entries.filter(e => e.cognitive_mode === 'reflect').length === 0 && (
+                  <div className="col-span-full py-12 border border-dashed border-white/5 rounded-2xl flex flex-col items-center justify-center text-white/20">
+                    <Archive className="w-8 h-8 mb-2" />
+                    <p>No reflections captured yet.</p>
+                  </div>
+                )}
+              </div>
+            </section>
           )}
         </div>
       </main>
