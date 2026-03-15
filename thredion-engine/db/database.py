@@ -28,5 +28,13 @@ def get_db():
 
 def init_db():
     """Create all tables defined in models."""
+    import os
+    if os.getenv("RESET_DATABASE") == "true":
+        db_path = settings.DATABASE_URL.replace("sqlite:///", "")
+        if os.path.exists(db_path):
+            import logging
+            logging.getLogger("thredion").info(f"RESET_DATABASE=true: Deleting {db_path}")
+            os.remove(db_path)
+    
     from db.models import User, OTPCode, Memory, Connection, ResurfacedMemory  # noqa: F401
     Base.metadata.create_all(bind=engine)

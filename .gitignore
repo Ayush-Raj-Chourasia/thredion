@@ -169,3 +169,10 @@ docs
 
 *.pdf
 azure-logs.zip
+*.zip
+deploy_staging.py
+deploy_temp
+batch_output_final.txt
+batch_output.txt
+extract_pdf.py
+test_staging_vs_prod.py

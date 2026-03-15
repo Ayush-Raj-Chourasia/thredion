@@ -117,23 +117,35 @@ async def process_cognitive_entry(
         entry.source_type = metadata.get("source_type", "unknown")
         
         # Step 3: Attempt full audio transcription (best quality)
-        transcript_result = await _try_transcription(url, platform)
+        if entry.source_type in ["supadata_api", "transcript24_api"]:
+            logger.info(f"[COGNITIVE] Skipping audio transcription, already have {entry.source_type} transcript.")
+            transcript_result = None
+        else:
+            transcript_result = await _try_transcription(url, platform)
         
         if transcript_result and transcript_result.success:
             entry.transcript = transcript_result.transcript
             entry.content_quality = "full_transcript"
             entry.content = transcript_result.transcript
             logger.info(f"[COGNITIVE] Full transcript obtained: {len(entry.transcript)} chars")
-        elif entry.source_type == "yt_transcript_api":
+        elif entry.source_type in ["supadata_api", "transcript24_api"]:
+            entry.content_quality = "full_transcript"
+            entry.content = caption
+            logger.info(f"[COGNITIVE] Using premium API transcript: {len(caption)} chars")
+        elif entry.source_type in ["yt_transcript_api", "yt_subtitle"]:
             # YouTube subtitles = subtitle quality (not full audio but close)
             entry.content_quality = "subtitle_only"
             entry.content = caption
             logger.info(f"[COGNITIVE] Using YouTube subtitles: {len(caption)} chars")
+        elif entry.source_type == "socialkit_api":
+            entry.content_quality = "caption_only"
+            entry.content = caption
+            logger.info(f"[COGNITIVE] Using SocialKit caption: {len(caption)} chars")
         elif caption and len(caption.strip()) > 10:
             # Caption/description available
             entry.content_quality = "caption_only"
             entry.content = caption
-            logger.info(f"[COGNITIVE] Using caption: {len(caption)} chars")
+            logger.info(f"[COGNITIVE] Using standard caption: {len(caption)} chars")
         else:
             # Metadata only
             entry.content_quality = "metadata_only"
