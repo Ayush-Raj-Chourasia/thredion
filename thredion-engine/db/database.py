@@ -24,7 +24,13 @@ Base = declarative_base()
 
 
 def get_db():
-    """Dependency: yields a database session and closes it after use."""
+    """
+    Dependency: yields a database session (with lazy init_db on first use).
+    This ensures database tables exist before the session is used.
+    """
+    # Lazy initialize database on first use
+    init_db()
+    
     db = SessionLocal()
     try:
         yield db
@@ -32,10 +38,23 @@ def get_db():
         db.close()
 
 
+# Track if database has been initialized
+_db_init_attempted = False
+
+
 def init_db():
-    """Create all tables defined in models. Fail gracefully in production."""
+    """
+    Lazily initialize database tables (called on first use, not on app startup).
+    This allows the app to start even if database is not immediately available.
+    """
     import os
     import logging
+    
+    global _db_init_attempted
+    
+    # Only attempt initialization once
+    if _db_init_attempted:
+        return
     
     logger = logging.getLogger("thredion")
     is_production = os.getenv("ENVIRONMENT") == "production" or "railway" in os.getenv("HOSTNAME", "").lower()
@@ -57,12 +76,15 @@ def init_db():
         from db.models import User, OTPCode, Memory, Connection, ResurfacedMemory  # noqa: F401
         Base.metadata.create_all(bind=engine)
         logger.info("✓ Database tables ensured to exist")
+        _db_init_attempted = True
     except Exception as e:
+        _db_init_attempted = True  # Mark as attempted to avoid repeated failures
         if is_production:
             # In production (Railway/Supabase), tables should already exist from migration
             # Log the error but don't crash the app
             logger.warning(f"⚠ Could not create/verify database tables (expected in production): {type(e).__name__}: {str(e)}")
             logger.warning("  Tables should exist from Supabase migration. If missing, run migrations manually.")
+            logger.warning("  App can function without this - database will be used when first needed.")
         else:
             # In development, this is a real error
             logger.error(f"✗ Failed to initialize database: {e}", exc_info=True)
