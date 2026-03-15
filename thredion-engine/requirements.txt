@@ -1,17 +1,39 @@
-fastapi
-uvicorn
+# Thredion Engine — Dependencies
+
+# ── Web Framework ──
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+python-multipart>=0.0.9
+
+# ── Database & Auth ──
+sqlalchemy>=2.0.35
+psycopg2-binary>=2.9.0
 supabase
-faster-whisper
-openai
-yt-dlp
-httpx
-beautifulsoup4
-readability-lxml
-pydantic
-python-dotenv
-python-multipart
 python-jose
 Passlib[bcrypt]
-sqlalchemy
-psycopg2-binary
-# sentence-transformers
+
+# ── AI / NLP ──
+# sentence-transformers is skipped for memory reasons (TF-IDF fallback used)
+scikit-learn>=1.5.0
+numpy>=1.26.0,<2.0.0
+openai>=1.50.0
+groq>=0.4.0
+
+# ── Content Extraction ──
+requests>=2.32.0
+beautifulsoup4>=4.12.0
+readability-lxml
+yt-dlp>=2024.1.1
+youtube-transcript-api>=0.6.0
+httpx>=0.25.0
+
+# ── Video Transcription ──
+faster-whisper>=1.0.0
+pydub>=0.25.1
+
+# ── Infrastructure & Utils ──
+azure-storage-queue>=12.14.0
+python-dotenv>=1.0.0
+twilio>=9.0.0
+gunicorn>=22.0.0
+pydantic
