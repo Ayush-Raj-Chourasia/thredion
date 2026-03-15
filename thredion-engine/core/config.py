@@ -23,6 +23,7 @@ class Settings:
     #           2) SUPABASE_URL + SUPABASE_DB_PASSWORD → PostgreSQL
     #           3) SQLite default (local dev, always works)
     SUPABASE_URL: str = os.getenv("SUPABASE_URL", "")
+    SUPABASE_KEY: str = os.getenv("SUPABASE_KEY", "")
     SUPABASE_DB_PASSWORD: str = os.getenv("SUPABASE_DB_PASSWORD", "")
     DATABASE_URL: str = os.getenv("DATABASE_URL", _default_db_path)
     

@@ -115,3 +115,41 @@ class ResurfacedMemory(Base):
     similarity_score = Column(Float, default=0.0)
     user_action = Column(Text, default="none")
     created_at = Column(DateTime(timezone=True), default=_utcnow)
+
+class CognitiveEntry(Base):
+    """Spec-compliant unified storage for cognitive entries (Learn/Think/Reflect)."""
+    __tablename__ = "cognitive_entries"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    input_type = Column(String(50), nullable=False)  # link, voice, text
+    cognitive_mode = Column(String(50), nullable=False) # learn, think, reflect
+    original_input = Column(Text, nullable=False)
+    source_url = Column(String(2048), nullable=True)
+    cleaned_text = Column(Text, default="")
+    summary = Column(Text, default="")
+    title = Column(String(512), default="")
+    key_points = Column(JSONB, default=[])
+    bucket = Column(String(100), default="Uncategorized")
+    tags = Column(JSONB, default=[])
+    actionability_score = Column(Float, default=0.0)
+    emotional_tone = Column(String(100), default="")
+    confidence_score = Column(Float, default=0.0)
+    resurfaced_count = Column(Integer, default=0)
+    last_resurfaced_at = Column(DateTime(timezone=True), nullable=True)
+    processing_status = Column(String(50), default="pending")
+    created_at = Column(DateTime(timezone=True), default=_utcnow)
+    updated_at = Column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
+
+
+class Bucket(Base):
+    """Spec-compliant bucket system (Cap at 20 per user)."""
+    __tablename__ = "buckets"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    name = Column(String(100), nullable=False)
+    entry_count = Column(Integer, default=0)
+    created_at = Column(DateTime(timezone=True), default=_utcnow)
+
+    __table_args__ = (UniqueConstraint('user_id', 'name', name='_user_bucket_uc'),)
