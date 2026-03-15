@@ -7,9 +7,15 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 from core.config import settings
 
+# Build connection args based on database type
+# check_same_thread is SQLite-only; PostgreSQL doesn't accept it
+connect_args = {}
+if "sqlite" in settings.DATABASE_URL.lower():
+    connect_args = {"check_same_thread": False}
+
 engine = create_engine(
     settings.DATABASE_URL,
-    connect_args={"check_same_thread": False},
+    connect_args=connect_args,
     echo=False,
 )
 
@@ -29,12 +35,22 @@ def get_db():
 def init_db():
     """Create all tables defined in models."""
     import os
-    if os.getenv("RESET_DATABASE") == "true":
+    import logging
+    
+    logger = logging.getLogger("thredion")
+    
+    # SQLite-specific reset (delete file)
+    if os.getenv("RESET_DATABASE") == "true" and "sqlite" in settings.DATABASE_URL.lower():
         db_path = settings.DATABASE_URL.replace("sqlite:///", "")
         if os.path.exists(db_path):
-            import logging
-            logging.getLogger("thredion").info(f"RESET_DATABASE=true: Deleting {db_path}")
+            logger.info(f"RESET_DATABASE=true: Deleting SQLite database {db_path}")
             os.remove(db_path)
+        else:
+            logger.warning(f"RESET_DATABASE=true: SQLite file not found: {db_path}")
+    
+    # PostgreSQL reset would require dropping tables via SQL (not implemented for safety)
+    if os.getenv("RESET_DATABASE") == "true" and "postgresql" in settings.DATABASE_URL.lower():
+        logger.warning("RESET_DATABASE=true: PostgreSQL reset not implemented (manual drop required for safety)")
     
     from db.models import User, OTPCode, Memory, Connection, ResurfacedMemory  # noqa: F401
     Base.metadata.create_all(bind=engine)
