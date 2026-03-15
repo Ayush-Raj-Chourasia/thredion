@@ -80,3 +80,9 @@ def get_user_buckets(user_id: UUID) -> List[str]:
     """Gets list of bucket names for a user."""
     res = supabase.table("buckets").select("name").eq("user_id", str(user_id)).execute()
     return [item["name"] for item in res.data]
+
+def get_all_users() -> List[User]:
+    """Retrieves all registered users."""
+    supabase = _get_client()
+    resp = supabase.table("users").select("*").execute()
+    return [User(**u) for u in resp.data]

@@ -27,6 +27,7 @@ interface CognitiveEntry {
   tags: string[];
   actionability_score: number;
   emotional_tone?: string;
+  source_url?: string;
   created_at: string;
 }
 
@@ -61,46 +62,76 @@ const ModeTag = ({ mode }: { mode: string }) => {
   );
 };
 
-const CognitiveCard = ({ entry }: { entry: CognitiveEntry }) => (
-  <div className="group relative bg-[#1A1A1A] border border-white/5 rounded-2xl p-6 hover:border-white/10 transition-all duration-300">
-    <div className="flex justify-between items-start mb-4">
-      <ModeTag mode={entry.cognitive_mode} />
-      <span className="text-[10px] text-white/30 font-medium uppercase tracking-widest flex items-center">
-        <Calendar className="w-3 h-3 mr-1" />
-        {new Date(entry.created_at).toLocaleDateString()}
-      </span>
-    </div>
-    
-    <h3 className="text-lg font-semibold text-white/90 mb-2 truncate group-hover:text-blue-400 transition-colors">
-      {entry.title}
-    </h3>
-    
-    <p className="text-sm text-white/50 line-clamp-2 mb-4 leading-relaxed">
-      {entry.summary}
-    </p>
-    
-    <div className="flex items-center justify-between pt-4 border-t border-white/5">
-      <div className="flex items-center space-x-2">
-        <span className="text-[10px] text-white/30 uppercase font-bold">Actionability</span>
-        <div className="w-24 h-1 bg-white/5 rounded-full overflow-hidden">
-          <div 
-            className="h-full bg-gradient-to-r from-blue-500 to-purple-500" 
-            style={{ width: `${entry.actionability_score * 100}%` }}
+const CognitiveCard = ({ entry }: { entry: CognitiveEntry }) => {
+  const getEmbedUrl = (url?: string) => {
+    if (!url) return null;
+    if (url.includes('youtube.com/watch') || url.includes('youtu.be')) {
+      const id = url.includes('v=') ? url.split('v=')[1].split('&')[0] : url.split('/').pop();
+      return `https://www.youtube.com/embed/${id}`;
+    }
+    if (url.includes('instagram.com/reel/') || url.includes('instagram.com/p/')) {
+      const cleanUrl = url.split('?')[0];
+      return `${cleanUrl}embed`;
+    }
+    return null;
+  };
+
+  const embedUrl = getEmbedUrl(entry.source_url);
+
+  return (
+    <div className="group relative bg-[#1A1A1A] border border-white/5 rounded-2xl p-6 hover:border-white/10 transition-all duration-300">
+      <div className="flex justify-between items-start mb-4">
+        <ModeTag mode={entry.cognitive_mode} />
+        <span className="text-[10px] text-white/30 font-medium uppercase tracking-widest flex items-center">
+          <Calendar className="w-3 h-3 mr-1" />
+          {new Date(entry.created_at).toLocaleDateString()}
+        </span>
+      </div>
+      
+      {embedUrl && entry.cognitive_mode === 'learn' && (
+        <div className="mb-4 rounded-xl overflow-hidden aspect-video bg-black/50 border border-white/5">
+          <iframe 
+            src={embedUrl}
+            className="w-full h-full"
+            frameBorder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
           />
         </div>
-      </div>
-      <div className="text-[10px] text-white/40 flex items-center bg-white/5 px-2 py-1 rounded-md">
-        <Archive className="w-3 h-3 mr-1" />
-        {entry.bucket}
+      )}
+
+      <h3 className="text-lg font-semibold text-white/90 mb-2 truncate group-hover:text-blue-400 transition-colors">
+        {entry.title}
+      </h3>
+      
+      <p className="text-sm text-white/50 line-clamp-2 mb-4 leading-relaxed">
+        {entry.summary}
+      </p>
+      
+      <div className="flex items-center justify-between pt-4 border-t border-white/5">
+        <div className="flex items-center space-x-2">
+          <span className="text-[10px] text-white/30 uppercase font-bold">Actionability</span>
+          <div className="w-24 h-1 bg-white/5 rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-gradient-to-r from-blue-500 to-purple-500" 
+              style={{ width: `${entry.actionability_score * 100}%` }}
+            />
+          </div>
+        </div>
+        <div className="text-[10px] text-white/40 flex items-center bg-white/5 px-2 py-1 rounded-md">
+          <Archive className="w-3 h-3 mr-1" />
+          {entry.bucket}
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 // --- Main Page ---
 
 export default function CognitiveDashboard() {
   const [activeTab, setActiveTab] = useState<'all' | 'learn' | 'think' | 'reflect'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [entries, setEntries] = useState<CognitiveEntry[]>([]);
   const [stats, setStats] = useState<WeeklyStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -131,9 +162,13 @@ export default function CognitiveDashboard() {
     fetchData();
   }, []);
 
-  const filteredEntries = activeTab === 'all' 
-    ? entries 
-    : entries.filter(e => e.cognitive_mode === activeTab);
+  const filteredEntries = entries.filter(e => {
+    const matchesTab = activeTab === 'all' || e.cognitive_mode === activeTab;
+    const matchesSearch = e.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          e.summary.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          e.bucket.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesTab && matchesSearch;
+  });
 
   if (loading) return (
     <div className="min-h-screen bg-[#0A0A0A] flex items-center justify-center text-white/20">
@@ -178,28 +213,41 @@ export default function CognitiveDashboard() {
           </div>
         </div>
 
-        {/* Tab Controls */}
-        <div className="flex flex-wrap items-center gap-3 mb-10 pb-8 border-b border-white/5">
-          {[
-            { id: 'all', label: 'All Layers', icon: <TrendingUp className="w-4 h-4" /> },
-            { id: 'learn', label: 'Learn', icon: <BookOpen className="w-4 h-4" /> },
-            { id: 'think', label: 'Think', icon: <Lightbulb className="w-4 h-4" /> },
-            { id: 'reflect', label: 'Reflect', icon: <User className="w-4 h-4" /> },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={clsx(
-                "flex items-center space-x-2 px-6 py-3 rounded-xl text-sm font-bold transition-all duration-300 border",
-                activeTab === tab.id 
-                  ? "bg-white text-black border-white" 
-                  : "bg-transparent text-white/40 border-white/5 hover:border-white/20 hover:text-white"
-              )}
-            >
-              {tab.icon}
-              <span>{tab.label}</span>
-            </button>
-          ))}
+        {/* Tab Controls & Search */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-10 pb-8 border-b border-white/5">
+          <div className="flex flex-wrap items-center gap-3">
+            {[
+              { id: 'all', label: 'All Layers', icon: <TrendingUp className="w-4 h-4" /> },
+              { id: 'learn', label: 'Learn', icon: <BookOpen className="w-4 h-4" /> },
+              { id: 'think', label: 'Think', icon: <Lightbulb className="w-4 h-4" /> },
+              { id: 'reflect', label: 'Reflect', icon: <User className="w-4 h-4" /> },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={clsx(
+                  "flex items-center space-x-2 px-6 py-3 rounded-xl text-sm font-bold transition-all duration-300 border",
+                  activeTab === tab.id 
+                    ? "bg-white text-black border-white" 
+                    : "bg-transparent text-white/40 border-white/5 hover:border-white/20 hover:text-white"
+                )}
+              >
+                {tab.icon}
+                <span>{tab.label}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="relative flex-1 max-w-md">
+            <input 
+              type="text"
+              placeholder="Search your cognitive layers..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-[#1A1A1A] border border-white/5 rounded-xl px-12 py-3 text-sm focus:border-blue-500/50 outline-none transition-all"
+            />
+            <Activity className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
+          </div>
         </div>
 
         {/* Content Grid */}
