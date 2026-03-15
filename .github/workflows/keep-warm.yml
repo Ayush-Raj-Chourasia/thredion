@@ -1,0 +1,50 @@
+name: Keep Thredion Warm (Prevent Render Spin-down)
+
+on:
+  schedule:
+    # Run every 10 minutes to prevent Render from spinning down
+    # (Render spins down after 15 mins of inactivity)
+    - cron: '*/10 * * * *'
+  
+  # Allow manual trigger from Actions tab
+  workflow_dispatch:
+
+jobs:
+  keep-warm:
+    name: Ping Health Endpoint
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install httpx
+      
+      - name: Ping health endpoint
+        env:
+          APP_URL: ${{ secrets.RENDER_APP_URL }}
+        run: |
+          python keep-warm.py "${{ secrets.RENDER_APP_URL }}"
+        continue-on-error: true
+      
+      - name: Alternative: Simple curl ping (if Python fails)
+        if: failure()
+        env:
+          APP_URL: ${{ secrets.RENDER_APP_URL }}
+        run: |
+          curl -f -s "${{ secrets.RENDER_APP_URL }}/health" || true
+        continue-on-error: true
+      
+      - name: Log completion
+        if: always()
+        run: |
+          echo "Keep-warm ping completed at $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
