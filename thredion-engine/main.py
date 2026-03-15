@@ -83,6 +83,7 @@ app.add_middleware(
         settings.FRONTEND_URL,
         "http://localhost:3000",
         "http://localhost:3001",
+        "https://thredion-v2.vercel.app",
         "https://thredion.vercel.app",
         "https://thredion-ayush-raj-chourasias-projects.vercel.app",
     ],
