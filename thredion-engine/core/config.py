@@ -1,6 +1,7 @@
 """
 Thredion Engine — Configuration
 Central configuration management for the cognitive memory engine.
+Supports: SQLite (local), PostgreSQL (Azure/Supabase), and managed deployments.
 """
 
 import os
@@ -18,7 +19,19 @@ if os.path.isdir("/home"):
 
 class Settings:
     # ── Database ──────────────────────────────────────────────
+    # Priority: 1) SUPABASE_URL + SUPABASE_KEY → PostgreSQL
+    #           2) DATABASE_URL env var (if set)
+    #           3) SQLite default (local dev)
+    SUPABASE_URL: str = os.getenv("SUPABASE_URL", "")
+    SUPABASE_KEY: str = os.getenv("SUPABASE_KEY", "")
     DATABASE_URL: str = os.getenv("DATABASE_URL", _default_db_path)
+    
+    # Auto-construct PostgreSQL connection string from Supabase if provided
+    if SUPABASE_URL and SUPABASE_KEY:
+        # Supabase URL format: https://xxxxxxxxxxxx.supabase.co
+        # Extract project ID and convert to PostgreSQL connection
+        _project_id = SUPABASE_URL.split("//")[1].split(".")[0]
+        DATABASE_URL = f"postgresql://postgres:{SUPABASE_KEY}@db.{_project_id}.supabase.co:5432/postgres"
 
     # ── OpenAI ────────────────────────────────────────────────
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")

@@ -7,6 +7,7 @@ import logging
 import sys
 import os
 from contextlib import asynccontextmanager
+from datetime import datetime
 
 # Add the project root to path so imports work correctly
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -95,6 +96,25 @@ app.include_router(auth_router)
 app.include_router(api_router)
 app.include_router(whatsapp_router)
 
+# ── Health Endpoint (for Render FREE & monitoring) ──────────
+
+@app.get("/health")
+def health_check():
+    """
+    Simple health endpoint for deployment platforms (Render, Railway, etc).
+    Used to:
+    - Keep Render from spinning down if pinged regularly
+    - Monitor uptime status
+    - Quick startup verification
+    """
+    return {
+        "status": "healthy",
+        "service": "thredion-engine",
+        "version": "1.0.0",
+        "timestamp": datetime.now().isoformat(),
+    }
+
+
 # ── Root Endpoint ─────────────────────────────────────────────
 
 
@@ -107,6 +127,7 @@ def root():
         "description": "AI Cognitive Memory Engine",
         "docs": "/docs",
         "endpoints": {
+            "health": "/health",
             "auth_send_otp": "/auth/send-otp",
             "auth_verify_otp": "/auth/verify-otp",
             "auth_me": "/auth/me",
