@@ -3,7 +3,6 @@ Thredion Engine — Main Application
 FastAPI entry point for the AI Cognitive Memory Engine.
 
 IMPORTANT: Railway must have SUPABASE_DB_PASSWORD environment variable set.
-Value: @Au$ATxV/5FJY*A (add to Railway Variables tab)
 """
 
 import logging
@@ -23,6 +22,7 @@ from db.database import init_db
 from api.routes import router as api_router
 from api.whatsapp import router as whatsapp_router
 from api.auth import router as auth_router
+from app.api.cognitive import router as cognitive_router
 
 # ── Logging ───────────────────────────────────────────────────
 
@@ -97,6 +97,7 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(api_router)
 app.include_router(whatsapp_router)
+app.include_router(cognitive_router)
 
 # ── Health Endpoint (for Render FREE & monitoring) ──────────
 

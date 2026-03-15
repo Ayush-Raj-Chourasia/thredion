@@ -15,6 +15,7 @@ from typing import Optional, List, Literal
 from dataclasses import dataclass, asdict
 
 from groq import Groq
+from openai import OpenAI
 from pydantic import BaseModel, Field
 
 from core.config import settings
@@ -53,6 +54,15 @@ def get_groq_client() -> Groq:
         return None
     
     return Groq(api_key=settings.GROQ_API_KEY)
+
+
+def get_openai_client() -> OpenAI:
+    """Get or create OpenAI client."""
+    if not settings.OPENAI_API_KEY:
+        logger.warning("⚠️ OPENAI_API_KEY not set, OpenAI processing will fail")
+        return None
+    
+    return OpenAI(api_key=settings.OPENAI_API_KEY)
 
 
 # ── LLM Processing ────────────────────────────────────────
@@ -208,3 +218,50 @@ async def fallback_classification(text: str) -> CognitiveStructure:
         emotional_tone="neutral",
         confidence_score=0.3,
     )
+
+
+async def process_with_openai(
+    text: str,
+    existing_buckets: Optional[List[str]] = None,
+    platform: str = "unknown",
+) -> Optional[CognitiveStructure]:
+    """
+    Process content with OpenAI LLM for structured cognitive analysis.
+    """
+    client = get_openai_client()
+    if not client:
+        logger.error("OpenAI not configured")
+        return None
+    
+    existing_buckets = existing_buckets or []
+    text_preview = text[:4000]
+    
+    logger.info("🧠 Processing with OpenAI LLM...")
+    
+    system_prompt = f"""You are Thredion's cognitive structuring engine.
+Analyze content and classify it:
+- "learn": External content
+- "think": User's own ideas
+- "reflect": Personal reflections
+
+Existing buckets: {', '.join(existing_buckets)}
+Prefer existing buckets if they fit. Suggest new one only if necessary.
+Return ONLY valid JSON."""
+
+    try:
+        response = client.beta.chat.completions.parse(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"Analyze this {platform} content:\n\n{text_preview}"}
+            ],
+            response_format=CognitiveStructure,
+        )
+        
+        structured = response.choices[0].message.parsed
+        logger.info(f"✅ OpenAI Analysis complete: {structured.cognitive_mode} → {structured.bucket}")
+        return structured
+        
+    except Exception as e:
+        logger.error(f"❌ OpenAI processing failed: {e}")
+        return None

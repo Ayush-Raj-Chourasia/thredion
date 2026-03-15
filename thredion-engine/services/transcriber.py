@@ -16,14 +16,14 @@ from typing import Optional, Dict, Any
 from dataclasses import dataclass
 
 import yt_dlp
-from faster_whisper import WhisperModel
+# from faster_whisper import WhisperModel (Deferred to avoid import hang)
 
 from core.config import settings
 
 logger = logging.getLogger(__name__)
 
 # ── Global Whisper Model Cache ─────────────────────────────
-_whisper_model: Optional[WhisperModel] = None
+_whisper_model: Optional[Any] = None
 _model_lock = asyncio.Lock()
 
 
@@ -38,7 +38,7 @@ class TranscriptionResult:
     error: str = ""
 
 
-def _load_whisper_model_sync() -> WhisperModel:
+def _load_whisper_model_sync() -> Any:
     """Load faster-whisper model synchronously (safe for thread executors)."""
     global _whisper_model
     
@@ -47,6 +47,7 @@ def _load_whisper_model_sync() -> WhisperModel:
     
     logger.info("Loading faster-whisper model (%s)...", settings.WHISPER_MODEL_SIZE)
     try:
+        from faster_whisper import WhisperModel
         _whisper_model = WhisperModel(
             model_size_or_path=settings.WHISPER_MODEL_SIZE,
             device="cpu",
@@ -61,7 +62,7 @@ def _load_whisper_model_sync() -> WhisperModel:
         raise
 
 
-async def load_whisper_model() -> WhisperModel:
+async def load_whisper_model() -> Any:
     """
     Lazy-load faster-whisper model (async-safe).
     Uses locking to prevent multiple concurrent loads.

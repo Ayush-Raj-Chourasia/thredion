@@ -29,10 +29,12 @@ class Settings:
     # Auto-construct PostgreSQL connection string from Supabase if we have REAL password
     # NOTE: SUPABASE_KEY (anon API key) is NOT a valid PostgreSQL password
     if SUPABASE_URL and SUPABASE_DB_PASSWORD:
+        from urllib.parse import quote_plus
         # Supabase URL format: https://xxxxxxxxxxxx.supabase.co
         # Extract project ID and construct PostgreSQL connection with REAL password
         _project_id = SUPABASE_URL.split("//")[1].split(".")[0]
-        DATABASE_URL = f"postgresql://postgres:{SUPABASE_DB_PASSWORD}@db.{_project_id}.supabase.co:5432/postgres"
+        _encoded_pw = quote_plus(SUPABASE_DB_PASSWORD)
+        DATABASE_URL = f"postgresql+psycopg2://postgres:{_encoded_pw}@db.{_project_id}.supabase.co:5432/postgres"
     elif SUPABASE_URL and not SUPABASE_DB_PASSWORD:
         # SUPABASE_URL set but no SUPABASE_DB_PASSWORD → use SQLite
         # This allows app to run locally; production use requires real password

@@ -167,12 +167,30 @@ docs
 *.md
 !README.md
 
-*.pdf
-azure-logs.zip
+# ==========================================
+# THREDION SECURE
+# ==========================================
+.env
+.env*
+secrets/
+*.secret
+auth_info/
+bot/auth_info/
+*.log
+*.sqlite
+thredion.db
+migrate_*.py
+test_*.py
+seed_*.py
+insert_db_user.py
+inspect_db*.py
+prepare_deploy.py
+deploy_*.py
+smoke_test*.log
+walkthrough.md
 *.zip
-deploy_staging.py
-deploy_temp
-batch_output_final.txt
-batch_output.txt
-extract_pdf.py
-test_staging_vs_prod.py
+*.pdf
+deploy_temp/
+tmp/
+temp/
+!thredion-dashboard/src/lib/

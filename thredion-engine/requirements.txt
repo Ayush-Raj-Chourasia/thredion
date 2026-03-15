@@ -1,48 +1,17 @@
-# Thredion Engine — Dependencies
-# AI Cognitive Memory Engine Backend
-
-# ── Web Framework ─────────────────────────────────────────
-fastapi>=0.115.0
-uvicorn[standard]>=0.30.0
-python-multipart>=0.0.9
-
-# ── Database ──────────────────────────────────────────────
-sqlalchemy>=2.0.35
-psycopg2-binary>=2.9.0  # PostgreSQL driver for Supabase
-
-# ── AI / NLP ──────────────────────────────────────────────
-# sentence-transformers is NOT pip-installed on Azure free tier
-# (it pulls PyTorch ~2 GB which exceeds the 1 GB RAM limit).
-# The code in embeddings.py auto-falls back to TF-IDF (scikit-learn).
-scikit-learn>=1.5.0
-numpy>=1.26.0,<2.0.0
-openai>=1.50.0
-
-# ── Content Extraction ───────────────────────────────────
-requests>=2.32.0
-beautifulsoup4>=4.12.0
-yt-dlp>=2024.1.1
-youtube-transcript-api>=0.6.0
-httpx>=0.25.0
-
-# ── Video Transcription ───────────────────────────────────
-faster-whisper>=1.0.0
-
-# ── LLM (Groq Cloud - Free) ──────────────────────────────
-groq>=0.4.0
-
-# ── Async Queue (Azure) ───────────────────────────────────
-azure-storage-queue>=12.14.0
-
-# ── Config ────────────────────────────────────────────────
-python-dotenv>=1.0.0
-
-# ── WhatsApp (Twilio) ────────────────────────────────────
-twilio>=9.0.0
-
-# ── Production Server ────────────────────────────────────
-gunicorn>=22.0.0
-
-# ── Auth ──────────────────────────────────────────────────
-pyjwt>=2.8.0
-
+fastapi
+uvicorn
+supabase
+faster-whisper
+openai
+yt-dlp
+httpx
+beautifulsoup4
+readability-lxml
+pydantic
+python-dotenv
+python-multipart
+python-jose
+Passlib[bcrypt]
+sqlalchemy
+psycopg2-binary
+sentence-transformers
