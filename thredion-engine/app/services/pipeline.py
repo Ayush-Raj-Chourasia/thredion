@@ -98,7 +98,13 @@ async def process_incoming(phone_number: str, message_text: str = None, voice_fi
         }
         
         updated_entry = supabase_client.update_entry(entry.id, updates)
-        return updated_entry.dict()
+        return {
+            "id": str(updated_entry.id),
+            "cognitive_mode": updated_entry.cognitive_mode,
+            "title": updated_entry.title,
+            "bucket": updated_entry.bucket,
+            "processing_status": updated_entry.processing_status
+        }
 
     except Exception as e:
         logger.error(f"Pipeline error for entry {entry.id}: {e}")
