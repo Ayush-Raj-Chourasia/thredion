@@ -19,19 +19,24 @@ if os.path.isdir("/home"):
 
 class Settings:
     # ── Database ──────────────────────────────────────────────
-    # Priority: 1) SUPABASE_URL + SUPABASE_KEY → PostgreSQL
-    #           2) DATABASE_URL env var (if set)
-    #           3) SQLite default (local dev)
+    # Priority: 1) DATABASE_URL env var (explicit, e.g., PostgreSQL password)
+    #           2) SUPABASE_URL + SUPABASE_DB_PASSWORD → PostgreSQL
+    #           3) SQLite default (local dev, always works)
     SUPABASE_URL: str = os.getenv("SUPABASE_URL", "")
-    SUPABASE_KEY: str = os.getenv("SUPABASE_KEY", "")
+    SUPABASE_DB_PASSWORD: str = os.getenv("SUPABASE_DB_PASSWORD", "")
     DATABASE_URL: str = os.getenv("DATABASE_URL", _default_db_path)
     
-    # Auto-construct PostgreSQL connection string from Supabase if provided
-    if SUPABASE_URL and SUPABASE_KEY:
+    # Auto-construct PostgreSQL connection string from Supabase if we have REAL password
+    # NOTE: SUPABASE_KEY (anon API key) is NOT a valid PostgreSQL password
+    if SUPABASE_URL and SUPABASE_DB_PASSWORD:
         # Supabase URL format: https://xxxxxxxxxxxx.supabase.co
-        # Extract project ID and convert to PostgreSQL connection
+        # Extract project ID and construct PostgreSQL connection with REAL password
         _project_id = SUPABASE_URL.split("//")[1].split(".")[0]
-        DATABASE_URL = f"postgresql://postgres:{SUPABASE_KEY}@db.{_project_id}.supabase.co:5432/postgres"
+        DATABASE_URL = f"postgresql://postgres:{SUPABASE_DB_PASSWORD}@db.{_project_id}.supabase.co:5432/postgres"
+    elif SUPABASE_URL and not SUPABASE_DB_PASSWORD:
+        # SUPABASE_URL set but no SUPABASE_DB_PASSWORD → use SQLite
+        # This allows app to run locally; production use requires real password
+        pass  # DATABASE_URL already set to default SQLite
 
     # ── OpenAI ────────────────────────────────────────────────
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
