@@ -250,10 +250,13 @@ Dashboard runs at `http://localhost:3000`
 
 1. Create a free [Twilio account](https://www.twilio.com/try-twilio)
 2. Go to Messaging → Try it Out → WhatsApp Sandbox
-3. Set webhook URL to: `https://thredion-api.azurewebsites.net/api/whatsapp/webhook` (POST)
+3. Set webhook URL to: `https://twilio-router.vercel.app/api/webhook` (POST)
 4. Add Twilio credentials to `.env`
 5. Join the sandbox: [**Open WhatsApp →**](https://wa.me/14155238886?text=join%20deep-third) (send **`join deep-third`**)
 6. Send any link to the bot and it processes through the full cognitive pipeline
+
+> The Twilio webhook should point to the standalone router, not directly to Azure.
+> Azure remains a downstream project target that the router can forward to.
 
 ---
 
@@ -270,7 +273,8 @@ Dashboard runs at `http://localhost:3000`
 | `GET` | `/api/stats` | Dashboard statistics |
 | `GET` | `/api/categories` | Category distribution |
 | `GET` | `/api/random` | Random memory for inspiration |
-| `POST` | `/api/whatsapp/webhook` | Twilio WhatsApp webhook |
+| `POST` | `/api/whatsapp/webhook` | Thredion backend WhatsApp webhook |
+| `POST` | `/api/twilio/webhook` | Legacy router endpoint inside the dashboard app |
 
 ---
 
