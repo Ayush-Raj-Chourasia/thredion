@@ -77,7 +77,7 @@ async def process_queue_message(message: QueueMessage) -> bool:
             memory.transcript_source = 'local_async'
             
             # Structure with LLM
-            user = db.query(User).filter(User.phone == user_phone).first()
+            user = db.query(User).filter(User.phone_number == user_phone).first()
             existing_buckets = []  # TODO: Get from user.buckets if available
             
             logger.info(f"[WORKER] Structuring with LLM...")

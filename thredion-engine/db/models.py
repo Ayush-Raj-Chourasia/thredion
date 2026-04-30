@@ -73,10 +73,28 @@ class Memory(Base):
     tags = Column(JSONB, default=[])
     importance_score = Column(Float, default=0.0)
     importance_reasons = Column(JSONB, default=[])
+    
+    # Cognitive & Metadata fields
+    thumbnail_url = Column(String(2048), nullable=True)
+    topic_graph = Column(JSONB, default=[])
+    content_quality = Column(String(50), default="pending")
+    cognitive_mode = Column(String(50), default="learn")
+    bucket = Column(String(100), default="Uncategorized")
+    
+    # Transcription fields
+    transcript = Column(Text, nullable=True)
+    transcript_length = Column(Integer, default=0)
+    transcript_source = Column(String(50), nullable=True)
+    transcription_job_id = Column(String(100), nullable=True)
+    transcription_status = Column(String(50), default="none")
+    processing_error = Column(Text, nullable=True)
+    is_video = Column(Boolean, default=False)
+    
     embedding = Column(LargeBinary, nullable=True) # bytea in postgres
     
     resurfaced_count = Column(Integer, default=0)
     last_resurfaced_at = Column(DateTime(timezone=True), nullable=True)
+    processed_at = Column(DateTime(timezone=True), nullable=True)
     
     created_at = Column(DateTime(timezone=True), default=_utcnow)
     updated_at = Column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
@@ -87,8 +105,19 @@ class Memory(Base):
         return self.source_url
     
     @property
+    def platform(self):
+        return self.source
+    
+    @property
     def content(self):
         return self.original_input
+    
+    @property
+    def user_phone(self):
+        # This is a bit tricky since we don't have the user object here usually
+        # But for serialization it might be needed. 
+        # api/routes.py uses it.
+        return "" # Default or handle in route
 
 
 class Connection(Base):

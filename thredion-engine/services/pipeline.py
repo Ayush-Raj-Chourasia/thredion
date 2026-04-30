@@ -252,7 +252,7 @@ async def process_video_url_async(
         
         # ── Step 4: Structure with LLM ──────────────────────────
         logger.info("[VIDEO PIPELINE] Processing with Groq LLM...")
-        user = db.query(User).filter(User.phone == user_phone).first()
+        user = db.query(User).filter(User.phone_number == user_phone).first()
         existing_buckets = []  # TODO: Get from user.buckets if available
         
         structured = await process_with_groq(
