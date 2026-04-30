@@ -9,3 +9,5 @@ npm-debug.log*
 *.md
 !README.md
 *.pdf
+.vercel
+.env*.local

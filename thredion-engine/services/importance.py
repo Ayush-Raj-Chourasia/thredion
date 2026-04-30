@@ -74,7 +74,7 @@ def _score_richness(memory: Memory) -> float:
     score = 0.0
     content = memory.content or ""
     summary = memory.summary or ""
-    tags = json.loads(memory.tags) if memory.tags else []
+    tags = memory.tags if isinstance(memory.tags, list) else (json.loads(memory.tags) if memory.tags else [])
 
     # Content length
     word_count = len(content.split())
@@ -121,6 +121,7 @@ def _score_novelty(
         all_memories = (
             db.query(Memory)
             .filter(Memory.id != memory.id)
+            .filter(Memory.user_id == memory.user_id)
             .filter(Memory.embedding.isnot(None))
             .all()
         )
@@ -179,7 +180,12 @@ def _score_relevance(
 ) -> float:
     """Score based on alignment with user's frequently saved categories."""
     if all_memories is None:
-        all_memories = db.query(Memory).filter(Memory.id != memory.id).all()
+        all_memories = (
+            db.query(Memory)
+            .filter(Memory.id != memory.id)
+            .filter(Memory.user_id == memory.user_id)
+            .all()
+        )
 
     if not all_memories:
         return 15.0

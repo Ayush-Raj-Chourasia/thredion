@@ -8,9 +8,11 @@ import asyncio
 import json
 import logging
 import re
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query, HTTPException
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
@@ -241,6 +243,137 @@ async def process_video_endpoint(
         raise HTTPException(status_code=500, detail=f"Processing failed: {str(e)}")
 
 
+# ── Cognitive Pipeline Endpoints ──────────────────────────────
+
+
+class BatchRequest(BaseModel):
+    urls: list[str]
+
+
+class CognitiveRequest(BaseModel):
+    url: str
+
+
+@router.post("/process-cognitive")
+async def process_cognitive_endpoint(
+    req: CognitiveRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Process a single URL through the FULL cognitive pipeline:
+    extract -> download audio -> transcribe -> LLM structure -> save.
+    """
+    from services.cognitive_pipeline import process_cognitive_entry
+    
+    url = req.url.strip()
+    if not re.match(r'^https?://', url):
+        raise HTTPException(status_code=400, detail="Invalid URL")
+    
+    try:
+        # Get user's existing buckets for better LLM bucketing
+        existing_buckets = _get_user_buckets(user.phone, db)
+        
+        entry = await process_cognitive_entry(url, user.phone, db, existing_buckets)
+        
+        # Save to database
+        memory = _save_cognitive_entry(entry, user.phone, db)
+        notify_change("memory_added", str(memory.id))
+        
+        return {
+            "success": entry.success,
+            "memory_id": memory.id,
+            "title": entry.title,
+            "content_quality": entry.content_quality,
+            "cognitive_mode": entry.cognitive_mode,
+            "bucket": entry.bucket,
+            "summary": entry.summary,
+            "key_points": entry.key_points,
+            "tags": entry.tags,
+            "content_length": len(entry.content),
+            "transcript_length": len(entry.transcript) if entry.transcript else 0,
+            "extraction_time_ms": entry.extraction_time_ms,
+        }
+    except Exception as e:
+        logger.error(f"Cognitive pipeline error for {url}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Processing failed: {str(e)}")
+
+
+@router.post("/process-batch")
+async def process_batch_endpoint(
+    req: BatchRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Process multiple URLs through the cognitive pipeline.
+    Handles the scenario: user forwards 10-20 Instagram reels.
+    
+    - Max 20 URLs per batch
+    - Per-platform rate limiting
+    - Deduplicates identical URLs
+    - Returns grouped summary
+    """
+    from services.cognitive_pipeline import process_batch
+    
+    urls = [u.strip() for u in req.urls if u.strip() and re.match(r'^https?://', u.strip())]
+    
+    if not urls:
+        raise HTTPException(status_code=400, detail="No valid URLs provided")
+    
+    if len(urls) > 20:
+        raise HTTPException(status_code=400, detail="Maximum 20 URLs per batch")
+    
+    try:
+        existing_buckets = _get_user_buckets(user.phone, db)
+        
+        entries = await process_batch(urls, user.phone, db, existing_buckets)
+        
+        # Save all entries to database
+        results = []
+        for entry in entries:
+            try:
+                memory = _save_cognitive_entry(entry, user.phone, db)
+                results.append({
+                    "url": entry.url,
+                    "success": entry.success,
+                    "memory_id": memory.id,
+                    "title": entry.title,
+                    "content_quality": entry.content_quality,
+                    "cognitive_mode": entry.cognitive_mode,
+                    "bucket": entry.bucket,
+                    "summary": entry.summary,
+                })
+                notify_change("memory_added", str(memory.id))
+            except Exception as e:
+                results.append({
+                    "url": entry.url,
+                    "success": False,
+                    "error": str(e),
+                })
+        
+        # Build grouped summary
+        succeeded = [r for r in results if r.get("success")]
+        bucket_counts = {}
+        for r in succeeded:
+            b = r.get("bucket", "Unknown")
+            bucket_counts[b] = bucket_counts.get(b, 0) + 1
+        
+        return {
+            "total": len(results),
+            "succeeded": len(succeeded),
+            "failed": len(results) - len(succeeded),
+            "by_bucket": bucket_counts,
+            "results": results,
+            "summary": f"Processed {len(succeeded)}/{len(results)} URLs: " + 
+                       ", ".join(f"{count} about {bucket}" 
+                                for bucket, count in sorted(bucket_counts.items(), key=lambda x: -x[1]))
+        }
+    except Exception as e:
+        logger.error(f"Batch pipeline error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Batch processing failed: {str(e)}")
+
+
 @router.get("/job/{job_id}")
 def get_job_status(
     job_id: str,
@@ -388,4 +521,65 @@ def _serialize_memory(memory: Memory) -> dict:
         "thumbnail_url": memory.thumbnail_url,
         "user_phone": memory.user_phone,
         "created_at": (memory.created_at.isoformat() + "Z") if memory.created_at else "",
+        "content_quality": getattr(memory, 'content_quality', None),
+        "cognitive_mode": getattr(memory, 'cognitive_mode', None),
+        "bucket": getattr(memory, 'bucket', None),
     }
+
+
+def _get_user_buckets(user_phone: str, db: Session) -> list:
+    """Get list of distinct bucket names for a user."""
+    try:
+        results = (
+            db.query(Memory.bucket)
+            .filter(Memory.user_phone == user_phone)
+            .filter(Memory.bucket.isnot(None))
+            .filter(Memory.bucket != "Uncategorized")
+            .distinct()
+            .all()
+        )
+        return [r[0] for r in results if r[0]]
+    except Exception:
+        return []
+
+
+def _save_cognitive_entry(entry, user_phone: str, db: Session) -> Memory:
+    """Save a CognitiveEntry to the database as a Memory record."""
+    memory = Memory(
+        url=entry.url,
+        platform=entry.platform,
+        title=(entry.title or "")[:512],
+        content=entry.content or "",
+        summary=entry.summary or "",
+        category=entry.bucket or "Uncategorized",
+        tags=json.dumps(entry.tags or []),
+        thumbnail_url=entry.thumbnail_url or "",
+        user_phone=user_phone,
+        # Transcription fields
+        transcript=entry.transcript or "",
+        transcript_length=len(entry.transcript) if entry.transcript else 0,
+        transcript_source="local" if entry.content_quality == "full_transcript" else "subtitle" if entry.content_quality == "subtitle_only" else "caption",
+        is_video=entry.platform in ("youtube", "instagram", "twitter"),
+        # Cognitive fields
+        cognitive_mode=entry.cognitive_mode or "learn",
+        key_points=json.dumps(entry.key_points or []),
+        bucket=entry.bucket or "Uncategorized",
+        actionability_score=entry.actionability_score or 0.0,
+        emotional_tone=entry.emotional_tone or "neutral",
+        confidence_score=entry.confidence_score or 0.0,
+        # Realistic architecture fields
+        source_type=entry.source_type or "unknown",
+        content_quality=entry.content_quality or "pending",
+        content_hash=entry.content_hash or None,
+        extraction_time_ms=entry.extraction_time_ms or 0,
+        # Status
+        transcription_status="completed" if entry.success else "failed",
+        processed_at=datetime.utcnow() if entry.success else None,
+    )
+    
+    db.add(memory)
+    db.commit()
+    db.refresh(memory)
+    
+    logger.info(f"Saved cognitive entry: id={memory.id}, quality={entry.content_quality}, bucket={entry.bucket}")
+    return memory

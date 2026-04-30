@@ -12,7 +12,7 @@ import asyncio
 import json
 import logging
 import threading
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 
 from sqlalchemy.orm import Session
@@ -25,7 +25,7 @@ from services.knowledge_graph import build_connections
 from services.importance import compute_importance
 from services.resurfacing import find_resurfaceable
 from services.transcriber import process_video
-from services.llm_processor import process_with_groq, fallback_classification
+from services.llm_processor import process_with_groq, process_with_openai, fallback_classification
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 _process_lock = threading.Lock()
 
 
-def process_url(url: str, user_phone: str, db: Session) -> dict:
+async def process_url(url: str, user_phone: str, db: Session) -> dict:
     """
     Full cognitive pipeline: URL → extract → embed → classify → graph → score → resurface.
     Returns a dict with all results for the WhatsApp reply and API response.
@@ -51,13 +51,19 @@ def process_url(url: str, user_phone: str, db: Session) -> dict:
             p in url.lower() for p in ["youtube.com", "youtu.be", "twitter.com", "x.com"]
         ) else normalized_url
         
+        # Get user ID from phone
+        user = db.query(User).filter(User.phone_number == user_phone).first()
+        if not user:
+            raise ValueError(f"User {user_phone} not found")
+        user_id = user.id
+
         existing = (
             db.query(Memory)
             .filter(
-                Memory.user_phone == user_phone,
-                (Memory.url == url)
-                | (Memory.url == normalized_url)
-                | (Memory.url == stripped_url),
+                Memory.user_id == user_id,
+                (Memory.source_url == url)
+                | (Memory.source_url == normalized_url)
+                | (Memory.source_url == stripped_url),
             )
             .first()
         )
@@ -65,19 +71,19 @@ def process_url(url: str, user_phone: str, db: Session) -> dict:
             logger.info(f"[Pipeline] Duplicate URL detected — memory #{existing.id}")
             import json as _json
             return {
-                "memory_id": existing.id,
-                "url": existing.url,
-                "platform": existing.platform,
+                "memory_id": str(existing.id),
+                "url": existing.source_url,
+                "platform": existing.source,
                 "title": existing.title,
                 "summary": existing.summary,
                 "category": existing.category,
-                "tags": _json.loads(existing.tags) if existing.tags else [],
-                "topic_graph": _json.loads(existing.topic_graph) if existing.topic_graph else [],
+                "tags": _json.loads(existing.tags) if isinstance(existing.tags, str) else existing.tags,
+                "topic_graph": [],
                 "importance_score": existing.importance_score or 0,
-                "importance_reasons": _json.loads(existing.importance_reasons) if existing.importance_reasons else [],
+                "importance_reasons": [],
                 "connections": [],
                 "resurfaced": [],
-                "thumbnail_url": existing.thumbnail_url or "",
+                "thumbnail_url": "",
                 "duplicate": True,
                 "message": "This link already exists in your memory vault!",
             }
@@ -96,21 +102,19 @@ def process_url(url: str, user_phone: str, db: Session) -> dict:
 
         # ── Step 3: Classify and summarize ───────────────────────
         logger.info("[Pipeline] Classifying content")
-        classification = classify_content(combined_text, url)
+        classification = await classify_content(combined_text, url)
 
         # ── Step 4: Save to database ─────────────────────────────
         memory = Memory(
-            url=url,
-            platform=extracted.platform,
+            source_url=url,
+            source=extracted.platform,
             title=extracted.title or classification.summary[:100],
-            content=extracted.content,
+            original_input=extracted.content,
             summary=classification.summary,
             category=classification.category,
-            tags=json.dumps(classification.tags),
-            topic_graph=json.dumps(classification.topic_graph),
+            tags=classification.tags, # models.py uses JSONB
             embedding=embedding_bytes,
-            thumbnail_url=extracted.thumbnail_url,
-            user_phone=user_phone,
+            user_id=user_id,
         )
         db.add(memory)
         db.commit()
@@ -126,7 +130,7 @@ def process_url(url: str, user_phone: str, db: Session) -> dict:
     logger.info("[Pipeline] Computing importance score")
     importance = compute_importance(memory, db)
     memory.importance_score = importance.score
-    memory.importance_reasons = json.dumps(importance.reasons)
+    memory.importance_reasons = importance.reasons # JSONB
     db.commit()
 
     # ── Step 7: Check for resurfaceable memories ─────────────
@@ -188,11 +192,17 @@ async def process_video_url_async(
             p in url.lower() for p in ["youtube.com", "youtu.be"]
         ) else normalized_url
         
+        # Get user ID from phone
+        user = db.query(User).filter(User.phone_number == user_phone).first()
+        if not user:
+            raise ValueError(f"User {user_phone} not found")
+        user_id = user.id
+
         existing = (
             db.query(Memory)
             .filter(
-                Memory.user_phone == user_phone,
-                (Memory.url == url) | (Memory.url == normalized_url) | (Memory.url == stripped_url),
+                Memory.user_id == user_id,
+                (Memory.source_url == url) | (Memory.source_url == normalized_url) | (Memory.source_url == stripped_url),
             )
             .first()
         )
@@ -200,7 +210,7 @@ async def process_video_url_async(
         if existing:
             logger.info(f"[VIDEO PIPELINE] Duplicate detected: Memory #{existing.id}")
             return {
-                "memory_id": existing.id,
+                "memory_id": str(existing.id),
                 "duplicate": True,
                 "message": "This link already exists in your memory vault!",
             }
@@ -211,15 +221,14 @@ async def process_video_url_async(
         
         # ── Step 2: Create Memory record with pending status ─────
         memory = Memory(
-            url=url,
-            platform=extracted.platform,
+            source_url=url,
+            source=extracted.platform,
             title=extracted.title,
-            content=extracted.content,
-            thumbnail_url=extracted.thumbnail_url,
-            user_phone=user_phone,
-            video_duration=extracted.duration_seconds,
-            is_video=True,
-            transcription_status='pending',
+            original_input=extracted.content,
+            user_id=user_id,
+            # video_duration=extracted.duration_seconds, # Check if field exists in models.py
+            # is_video=True,
+            # transcription_status='pending',
         )
         db.add(memory)
         db.commit()

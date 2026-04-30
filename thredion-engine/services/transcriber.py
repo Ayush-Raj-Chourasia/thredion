@@ -10,27 +10,62 @@ import logging
 import os
 import json
 import uuid
+import tempfile
 from datetime import datetime
 from typing import Optional, Dict, Any
+from dataclasses import dataclass
 
 import yt_dlp
-from faster_whisper import WhisperModel
-from pydub import AudioSegment
+# from faster_whisper import WhisperModel (Deferred to avoid import hang)
 
 from core.config import settings
 
 logger = logging.getLogger(__name__)
 
 # ── Global Whisper Model Cache ─────────────────────────────
-_whisper_model: Optional[WhisperModel] = None
+_whisper_model: Optional[Any] = None
 _model_lock = asyncio.Lock()
 
 
-async def load_whisper_model() -> WhisperModel:
+@dataclass
+class TranscriptionResult:
+    """Result of audio transcription."""
+    transcript: str = ""
+    content_quality: str = "pending"  # full_transcript|subtitle_only|caption_only|metadata_only
+    duration_seconds: int = 0
+    language: str = "en"
+    success: bool = False
+    error: str = ""
+
+
+def _load_whisper_model_sync() -> Any:
+    """Load faster-whisper model synchronously (safe for thread executors)."""
+    global _whisper_model
+    
+    if _whisper_model is not None:
+        return _whisper_model
+    
+    logger.info("Loading faster-whisper model (%s)...", settings.WHISPER_MODEL_SIZE)
+    try:
+        from faster_whisper import WhisperModel
+        _whisper_model = WhisperModel(
+            model_size_or_path=settings.WHISPER_MODEL_SIZE,
+            device="cpu",
+            compute_type="int8",
+            num_workers=1,
+            cpu_threads=2
+        )
+        logger.info("Whisper model loaded successfully")
+        return _whisper_model
+    except Exception as e:
+        logger.error(f"Failed to load Whisper model: {e}")
+        raise
+
+
+async def load_whisper_model() -> Any:
     """
-    Lazy-load faster-whisper model (optimized for CPU).
+    Lazy-load faster-whisper model (async-safe).
     Uses locking to prevent multiple concurrent loads.
-    Model: base (74M parameters, fast on CPU with int8 quantization)
     """
     global _whisper_model
     
@@ -41,20 +76,8 @@ async def load_whisper_model() -> WhisperModel:
         if _whisper_model is not None:
             return _whisper_model
         
-        logger.info("Loading faster-whisper model (base)...")
-        try:
-            _whisper_model = WhisperModel(
-                model_size_or_path=settings.WHISPER_MODEL_SIZE,
-                device="cpu",
-                compute_type="int8",  # 8-bit quantization for low RAM
-                num_workers=1,
-                cpu_threads=2
-            )
-            logger.info("✅ Whisper model loaded successfully")
-            return _whisper_model
-        except Exception as e:
-            logger.error(f"❌ Failed to load Whisper model: {e}")
-            raise
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, _load_whisper_model_sync)
 
 
 def detect_platform(url: str) -> str:
@@ -121,73 +144,156 @@ async def get_video_metadata(url: str) -> Dict[str, Any]:
     return await loop.run_in_executor(None, _extract)
 
 
-async def transcribe_short_video(url: str) -> str:
+async def download_audio(url: str) -> Optional[str]:
     """
-    LOCAL TRANSCRIPTION: faster-whisper (synchronous, free, instant).
-    For videos <5 minutes.
+    Download audio from any video URL (YouTube, Instagram, Twitter).
+    Returns path to downloaded audio file, or None on failure.
+    Platform-agnostic: yt-dlp handles YouTube, Instagram, Twitter, TikTok etc.
     """
-    logger.info(f"[SHORT] Transcribing locally: {url}")
+    tmp_dir = tempfile.gettempdir()
+    output_template = os.path.join(tmp_dir, f"thredion_audio_{uuid.uuid4().hex[:8]}.%(ext)s")
     
-    def _transcribe():
+    def _download():
+        ffmpeg_path = os.getenv('FFMPEG_PATH', 'ffmpeg')
+        
+        ydl_opts = {
+            'format': 'bestaudio/best',
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'wav',
+                'preferredquality': '192',
+            }],
+            'ffmpeg_location': ffmpeg_path,
+            'quiet': True,
+            'no_warnings': True,
+            'outtmpl': output_template,
+            'socket_timeout': 30,
+        }
+        
         try:
-            # Get ffmpeg path from environment or use default
-            ffmpeg_path = os.getenv('FFMPEG_PATH', 'ffmpeg')
-            
-            # Download audio only (no video)
-            ydl_opts = {
-                'format': 'bestaudio/best',
-                'postprocessors': [{
-                    'key': 'FFmpegExtractAudio',
-                    'preferredcodec': 'wav',
-                    'preferredquality': '192',
-                }],
-                'ffmpeg_location': ffmpeg_path,
-                'quiet': True,
-                'no_warnings': True,
-                'outtmpl': '/tmp/%(title)s.%(ext)s',
-                'socket_timeout': 30,
-            }
-            
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=True)
-                audio_file = ydl.prepare_filename(info)
+                # yt-dlp renames the file after post-processing
+                base = output_template.replace('.%(ext)s', '')
+                # Try .wav first, then other extensions
+                for ext in ['wav', 'mp3', 'ogg', 'opus', 'webm', 'm4a']:
+                    candidate = f"{base}.{ext}"
+                    if os.path.exists(candidate):
+                        logger.info(f"Audio downloaded: {candidate}")
+                        return candidate
+                
+                # Fallback: check what yt-dlp actually created
+                prepared = ydl.prepare_filename(info)
+                wav_path = os.path.splitext(prepared)[0] + '.wav'
+                if os.path.exists(wav_path):
+                    return wav_path
+                if os.path.exists(prepared):
+                    return prepared
+                    
+                logger.warning(f"Audio file not found after download")
+                return None
+        except Exception as e:
+            logger.warning(f"Audio download failed for {url}: {e}")
+            return None
+    
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, _download)
+
+
+async def transcribe_audio_file(audio_path: str) -> TranscriptionResult:
+    """
+    Transcribe a local audio file using faster-whisper.
+    """
+    def _transcribe():
+        try:
+            model = _load_whisper_model_sync()
             
-            logger.info(f"[SHORT] Audio downloaded: {audio_file}")
-            
-            # Load model
-            model = asyncio.run(load_whisper_model())
-            
-            # Transcribe
-            logger.info(f"[SHORT] Starting transcription...")
-            segments, _ = model.transcribe(
-                audio_file,
+            logger.info(f"Transcribing: {audio_path}")
+            segments, info = model.transcribe(
+                audio_path,
                 language="en",
                 beam_size=5,
             )
             
-            # Collect transcript
             transcript_parts = []
             for segment in segments:
                 transcript_parts.append(segment.text.strip())
             
             transcript = " ".join(transcript_parts)
             
-            logger.info(f"[SHORT] ✅ Completed: {len(transcript)} chars")
+            logger.info(f"Transcription complete: {len(transcript)} chars")
             
-            # Cleanup
-            try:
-                os.remove(audio_file)
-            except:
-                pass
-            
-            return transcript
-        
+            return TranscriptionResult(
+                transcript=transcript,
+                content_quality="full_transcript",
+                language=info.language if hasattr(info, 'language') else "en",
+                success=bool(transcript and len(transcript.strip()) > 10),
+            )
         except Exception as e:
-            logger.error(f"[SHORT] Local transcription failed: {e}")
-            raise
+            logger.error(f"Transcription failed: {e}")
+            return TranscriptionResult(
+                transcript="",
+                content_quality="metadata_only",
+                success=False,
+                error=str(e),
+            )
     
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(None, _transcribe)
+
+
+async def transcribe_short_video(url: str) -> str:
+    """
+    LOCAL TRANSCRIPTION: faster-whisper (synchronous, free, instant).
+    For videos <5 minutes. Returns transcript text.
+    """
+    logger.info(f"[SHORT] Transcribing locally: {url}")
+    
+    audio_path = await download_audio(url)
+    if not audio_path:
+        raise RuntimeError(f"Audio download failed for {url}")
+    
+    try:
+        result = await transcribe_audio_file(audio_path)
+        if result.success:
+            return result.transcript
+        else:
+            raise RuntimeError(f"Transcription produced no output: {result.error}")
+    finally:
+        # Cleanup
+        try:
+            if audio_path and os.path.exists(audio_path):
+                os.remove(audio_path)
+        except Exception:
+            pass
+
+
+async def transcribe_url_full(url: str) -> TranscriptionResult:
+    """
+    Full transcription pipeline: download audio + transcribe.
+    Returns TranscriptionResult with content_quality tracking.
+    Used by the cognitive pipeline.
+    """
+    logger.info(f"Full transcription pipeline for: {url}")
+    
+    audio_path = await download_audio(url)
+    if not audio_path:
+        return TranscriptionResult(
+            transcript="",
+            content_quality="metadata_only",
+            success=False,
+            error="Audio download failed",
+        )
+    
+    try:
+        result = await transcribe_audio_file(audio_path)
+        return result
+    finally:
+        try:
+            if audio_path and os.path.exists(audio_path):
+                os.remove(audio_path)
+        except Exception:
+            pass
 
 
 async def queue_long_video_job(
@@ -310,14 +416,16 @@ async def process_video(
 
 # Utility: Clean up old audio files
 async def cleanup_temp_audio():
-    """Periodically clean up downloaded audio files from /tmp."""
+    """Periodically clean up downloaded audio files from temp dir."""
     import glob
+    tmp_dir = tempfile.gettempdir()
     try:
-        for f in glob.glob('/tmp/*.wav'):
-            try:
-                os.remove(f)
-                logger.info(f"Cleaned up: {f}")
-            except:
-                pass
+        for pattern in ['thredion_audio_*.wav', 'thredion_audio_*.mp3', 'thredion_audio_*.ogg']:
+            for f in glob.glob(os.path.join(tmp_dir, pattern)):
+                try:
+                    os.remove(f)
+                    logger.info(f"Cleaned up: {f}")
+                except Exception:
+                    pass
     except Exception as e:
         logger.warning(f"Cleanup failed: {e}")

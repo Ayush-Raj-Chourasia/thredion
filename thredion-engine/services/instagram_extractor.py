@@ -25,6 +25,8 @@ import requests
 from bs4 import BeautifulSoup
 import yt_dlp
 
+from core.config import settings
+
 logger = logging.getLogger(__name__)
 
 HEADERS = {
@@ -307,35 +309,43 @@ def extract_with_yt_dlp_media(url: str) -> Optional[InstagramResult]:
         return None
 
 
-# ── LAYER 3: Paid API Fallback (SocialKit, Supadata) ────────────────
-
-
-def extract_with_paid_api(url: str, api_provider: str = "socialkit") -> Optional[InstagramResult]:
+def extract_with_socialkit(url: str, post_id: str) -> Optional[InstagramResult]:
     """
-    LAYER 3: Last resort - use paid APIs when local methods fail.
-    
-    Providers:
-    - SocialKit: ~$0.50-$2.00 per extraction
-    - Supadata: ~$1.00-$3.00 per extraction  
-    - 2Captcha: varies, used for login
-    
-    Success rate: ~80%
-    Speed: 5-15 seconds
-    Cost: $$ (significant)
-    
-    Only call if:
-    - All free methods failed
-    - Budget allows
-    - Content is genuinely high-value
+    LAYER 3: Fallback using SocialKit API.
+    Provides metadata, captions, and exact media URLs to bypass Instagram blocks.
     """
+    if not settings.SOCIALKIT_API_KEY:
+        return None
+        
+    start_time = datetime.utcnow()
+    # SocialKit uses a GraphQL/JSON endpoint typically, we will mock the standard REST call
+    api_url = f"https://api.socialkit.dev/v1/instagram/post?url={url}"
     
-    if api_provider == "socialkit":
-        # Placeholder for SocialKit API call
-        logger.warning(f"SocialKit API not yet implemented for {url}")
-    elif api_provider == "supadata":
-        # Placeholder for Supadata API call
-        logger.warning(f"Supadata API not yet implemented for {url}")
-    
+    try:
+        resp = requests.get(
+            api_url, 
+            headers={"Authorization": f"Bearer {settings.SOCIALKIT_API_KEY}"}, 
+            timeout=15
+        )
+        if resp.status_code == 200:
+            data = resp.json().get("data", {})
+            caption = data.get("caption", "")
+            
+            if caption:
+                extraction_time = int((datetime.utcnow() - start_time).total_seconds() * 1000)
+                
+                return InstagramResult(
+                    title=data.get("title", f"Instagram Post ({post_id})"),
+                    content=caption,
+                    thumbnail_url=data.get("thumbnail", ""),
+                    source_type="socialkit_api",
+                    transcript_length=len(caption),
+                    extraction_time_ms=extraction_time,
+                    is_video=data.get("is_video", False),
+                    success=True,
+                )
+    except Exception as e:
+        logger.warning(f"SocialKit API failed for {url}: {e}")
     return None
 
 
@@ -394,7 +404,10 @@ def extract_instagram(url: str) -> InstagramResult:
         return result
     
     # Layer 3: Paid API (expensive, use carefully)
-    # Skip for MVP - would check budget guardrails
+    result = extract_with_socialkit(url, normalize_instagram_url(url).split("p/")[1].rstrip("/") if "p/" in normalize_instagram_url(url) else "unknown")
+    if result:
+        logger.info(f"Instagram Layer 3 (SocialKit) succeeded")
+        return result
     
     # Layer 4: Minimal metadata
     logger.warning(f"Instagram: Falling back to minimal metadata for {url}")

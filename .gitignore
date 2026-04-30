@@ -167,5 +167,32 @@ docs
 *.md
 !README.md
 
+# ==========================================
+# THREDION SECURE
+# ==========================================
+.env
+.env*
+secrets/
+*.secret
+auth_info/
+bot/auth_info/
+*.log
+*.sqlite
+thredion.db
+migrate_*.py
+test_*.py
+seed_*.py
+insert_db_user.py
+inspect_db*.py
+prepare_deploy.py
+deploy_*.py
+smoke_test*.log
+walkthrough.md
+*.zip
 *.pdf
-azure-logs.zip
+deploy_temp/
+tmp/
+temp/
+!thredion-dashboard/src/lib/
+.vercel
+.env*.local

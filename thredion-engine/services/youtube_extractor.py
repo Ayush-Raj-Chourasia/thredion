@@ -30,6 +30,8 @@ from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFoun
 import requests
 from bs4 import BeautifulSoup
 
+from core.config import settings
+
 logger = logging.getLogger(__name__)
 
 HEADERS = {
@@ -228,6 +230,83 @@ def extract_with_ytdlp_subtitles(video_id: str) -> Optional[YouTubeResult]:
         logger.warning(f"Layer 2 (yt-dlp subtitles) failed for {video_id}: {e}")
         return None
 
+# ── LAYER 2.5: Premium APIs (Supadata, Transcript24) ─────────────
+
+def extract_with_supadata(video_id: str) -> Optional[YouTubeResult]:
+    """
+    LAYER 2.5A: Fallback using Supadata API for transcript extraction.
+    """
+    if not settings.SUPADATA_API_KEY:
+        return None
+        
+    start_time = datetime.utcnow()
+    url = f"https://api.supadata.ai/v1/youtube/transcript?videoId={video_id}&text=true"
+    
+    try:
+        resp = requests.get(url, headers={"x-api-key": settings.SUPADATA_API_KEY}, timeout=10)
+        if resp.status_code == 200:
+            data = resp.json()
+            content = data.get("content", "")
+            if content:
+                extraction_time = int((datetime.utcnow() - start_time).total_seconds() * 1000)
+                metadata = _get_youtube_metadata_quick(video_id)
+                
+                return YouTubeResult(
+                    title=metadata.get("title", ""),
+                    content=content,
+                    thumbnail_url=metadata.get("thumbnail_url", f"https://img.youtube.com/vi/{video_id}/maxresdefault.jpg"),
+                    duration_seconds=metadata.get("duration", 0),
+                    video_id=video_id,
+                    channel_name=metadata.get("channel", ""),
+                    source_type="supadata_api",
+                    transcript_length=len(content),
+                    extraction_time_ms=extraction_time,
+                    detected_language=data.get("language", "en"),
+                    success=True,
+                )
+    except Exception as e:
+        logger.warning(f"Supadata API failed for {video_id}: {e}")
+    return None
+
+def extract_with_transcript24(url: str, video_id: str) -> Optional[YouTubeResult]:
+    """
+    LAYER 2.5B: Fallback using Transcript24 API.
+    """
+    if not settings.TRANSCRIPT24_API_KEY:
+        return None
+        
+    start_time = datetime.utcnow()
+    api_url = "https://api.transcript24.com/v1/transcribe"
+    
+    try:
+        resp = requests.post(
+            api_url, 
+            headers={"Authorization": f"Bearer {settings.TRANSCRIPT24_API_KEY}"}, 
+            json={"url": url}, 
+            timeout=30
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            content = data.get("transcript", "")
+            if content:
+                extraction_time = int((datetime.utcnow() - start_time).total_seconds() * 1000)
+                metadata = _get_youtube_metadata_quick(video_id)
+                
+                return YouTubeResult(
+                    title=metadata.get("title", ""),
+                    content=content,
+                    thumbnail_url=metadata.get("thumbnail_url", f"https://img.youtube.com/vi/{video_id}/maxresdefault.jpg"),
+                    duration_seconds=metadata.get("duration", 0),
+                    video_id=video_id,
+                    channel_name=metadata.get("channel", ""),
+                    source_type="transcript24_api",
+                    transcript_length=len(content),
+                    extraction_time_ms=extraction_time,
+                    success=True,
+                )
+    except Exception as e:
+        logger.warning(f"Transcript24 API failed for {video_id}: {e}")
+    return None
 
 # ── LAYER 3: Local ASR (Queued, CPU-Expensive) ─────────────
 
@@ -437,6 +516,18 @@ def extract_youtube(url: str) -> YouTubeResult:
     result = extract_with_ytdlp_subtitles(video_id)
     if result:
         logger.info(f"Layer 2 (yt-dlp subtitles) succeeded for {video_id}")
+        return result
+        
+    # Layer 2.5A: Supadata API (paid)
+    result = extract_with_supadata(video_id)
+    if result:
+        logger.info(f"Layer 2.5A (Supadata) succeeded for {video_id}")
+        return result
+        
+    # Layer 2.5B: Transcript24 API (paid)
+    result = extract_with_transcript24(canonical_url, video_id)
+    if result:
+        logger.info(f"Layer 2.5B (Transcript24) succeeded for {video_id}")
         return result
     
     # Layer 3: Queue local ASR (async) - only for short videos
