@@ -680,7 +680,6 @@ def _save_cognitive_entry(entry, user_id: str, db: Session):
         "actionability_score": entry.actionability_score or 0.0,
         "emotional_tone": entry.emotional_tone or "neutral",
         "confidence_score": entry.confidence_score or 0.0,
-        "source_type": entry.source_type or "unknown",
         "transcription_status": "completed" if entry.success else "failed",
         "processed_at": datetime.utcnow().isoformat() if entry.success else None,
     }
