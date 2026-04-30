@@ -38,6 +38,17 @@ HEADERS = {
 }
 
 
+def _sanitize_thumbnail_url(url: str) -> str:
+    """Avoid returning hotlinked Instagram CDN URLs that browsers often block."""
+    if not url:
+        return ""
+
+    lower = url.lower()
+    if "instagram.com" in lower or "cdninstagram.com" in lower or "fbcdn.net" in lower:
+        return ""
+    return url
+
+
 @dataclass
 class InstagramResult:
     """Standardized Instagram extraction result."""
@@ -175,7 +186,7 @@ def _try_noembed(url: str) -> Optional[Dict[str, Any]]:
                 return {
                     "title": data.get("title", "Instagram Post"),
                     "content": data.get("description", data.get("title", "")),
-                    "thumbnail_url": data.get("thumbnail_url", ""),
+                    "thumbnail_url": _sanitize_thumbnail_url(data.get("thumbnail_url", "")),
                     "source_type": "caption_only",
                     "transcript_length": len(data.get("description", "")),
                 }
@@ -201,7 +212,7 @@ def _try_oembed(url: str) -> Optional[Dict[str, Any]]:
                 return {
                     "title": data.get("title", "Instagram Post"),
                     "content": data.get("title", ""),  # oEmbed doesn't include caption
-                    "thumbnail_url": data.get("thumbnail_url", ""),
+                    "thumbnail_url": _sanitize_thumbnail_url(data.get("thumbnail_url", "")),
                     "source_type": "caption_only",
                     "transcript_length": len(data.get("title", "")),
                 }
@@ -241,7 +252,7 @@ def _try_meta_scraping(url: str) -> Optional[Dict[str, Any]]:
             return {
                 "title": title,
                 "content": description or title,
-                "thumbnail_url": thumbnail or "",
+                "thumbnail_url": _sanitize_thumbnail_url(thumbnail or ""),
                 "source_type": "caption_only",
                 "transcript_length": len(description or title),
             }
@@ -295,7 +306,7 @@ def extract_with_yt_dlp_media(url: str) -> Optional[InstagramResult]:
             return InstagramResult(
                 title=info.get("title", "Instagram Post"),
                 content=description,
-                thumbnail_url=info.get("thumbnail", ""),
+                thumbnail_url=_sanitize_thumbnail_url(info.get("thumbnail", "")),
                 source_type="caption_only" if has_content else "media_accessible",
                 transcript_length=len(description),
                 extraction_time_ms=extraction_time,
@@ -337,7 +348,7 @@ def extract_with_socialkit(url: str, post_id: str) -> Optional[InstagramResult]:
                 return InstagramResult(
                     title=data.get("title", f"Instagram Post ({post_id})"),
                     content=caption,
-                    thumbnail_url=data.get("thumbnail", ""),
+                    thumbnail_url=_sanitize_thumbnail_url(data.get("thumbnail", "")),
                     source_type="socialkit_api",
                     transcript_length=len(caption),
                     extraction_time_ms=extraction_time,
@@ -393,6 +404,7 @@ def extract_instagram(url: str) -> InstagramResult:
     # Layer 1: Try metadata/caption extraction first
     result = extract_with_metadata_first(url)
     if result:
+        result.thumbnail_url = _sanitize_thumbnail_url(result.thumbnail_url)
         logger.info(f"Instagram Layer 1 succeeded: {result.source_type}")
         return result
     
@@ -400,12 +412,14 @@ def extract_instagram(url: str) -> InstagramResult:
     # Only do this if we have signals it's worth trying
     result = extract_with_yt_dlp_media(url)
     if result:
+        result.thumbnail_url = _sanitize_thumbnail_url(result.thumbnail_url)
         logger.info(f"Instagram Layer 2 (media download) succeeded")
         return result
     
     # Layer 3: Paid API (expensive, use carefully)
     result = extract_with_socialkit(url, normalize_instagram_url(url).split("p/")[1].rstrip("/") if "p/" in normalize_instagram_url(url) else "unknown")
     if result:
+        result.thumbnail_url = _sanitize_thumbnail_url(result.thumbnail_url)
         logger.info(f"Instagram Layer 3 (SocialKit) succeeded")
         return result
     

@@ -17,6 +17,7 @@ Content quality hierarchy:
 import logging
 import hashlib
 import time
+import asyncio
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 from dataclasses import dataclass, asdict
@@ -33,6 +34,17 @@ from services.instagram_extractor import extract_instagram
 from services.twitter_extractor import extract_twitter
 
 logger = logging.getLogger(__name__)
+
+
+def _sanitize_thumbnail_url(url: str) -> str:
+    """Avoid storing browser-blocked thumbnail URLs from Instagram/CDN hosts."""
+    if not url:
+        return ""
+
+    lower = url.lower()
+    if "instagram.com" in lower or "cdninstagram.com" in lower or "fbcdn.net" in lower:
+        return ""
+    return url
 
 
 # ── Result Dataclass ─────────────────────────────────────────────
@@ -117,11 +129,22 @@ async def process_cognitive_entry(
         entry.source_type = metadata.get("source_type", "unknown")
         
         # Step 3: Attempt full audio transcription (best quality)
-        if entry.source_type in ["supadata_api", "transcript24_api"]:
+        # Instagram/Twitter extraction is caption-first; audio transcription is
+        # expensive and frequently causes worker timeouts without adding value.
+        if platform in ("instagram", "twitter"):
+            transcript_result = None
+        elif entry.source_type in ["supadata_api", "transcript24_api"]:
             logger.info(f"[COGNITIVE] Skipping audio transcription, already have {entry.source_type} transcript.")
             transcript_result = None
         else:
-            transcript_result = await _try_transcription(url, platform)
+            try:
+                transcript_result = await asyncio.wait_for(
+                    _try_transcription(url, platform),
+                    timeout=25,
+                )
+            except asyncio.TimeoutError:
+                logger.warning(f"[COGNITIVE] Audio transcription timed out for {url}")
+                transcript_result = None
         
         if transcript_result and transcript_result.success:
             entry.transcript = transcript_result.transcript
@@ -217,7 +240,7 @@ async def _extract_metadata(url: str, platform: str) -> tuple:
             caption = result.content or ""
             metadata = {
                 "title": result.title,
-                "thumbnail_url": result.thumbnail_url,
+                "thumbnail_url": _sanitize_thumbnail_url(result.thumbnail_url),
                 "duration_seconds": 0,
                 "source_type": result.source_type,
             }
@@ -227,7 +250,7 @@ async def _extract_metadata(url: str, platform: str) -> tuple:
             caption = result.content or ""
             metadata = {
                 "title": result.title or f"Tweet by {result.author_name}",
-                "thumbnail_url": result.thumbnail_url,
+                "thumbnail_url": _sanitize_thumbnail_url(result.thumbnail_url),
                 "duration_seconds": 0,
                 "source_type": result.source_type,
             }
@@ -238,7 +261,7 @@ async def _extract_metadata(url: str, platform: str) -> tuple:
             caption = meta.get("description", "")
             metadata = {
                 "title": meta.get("title", ""),
-                "thumbnail_url": meta.get("thumbnail", ""),
+                "thumbnail_url": _sanitize_thumbnail_url(meta.get("thumbnail", "")),
                 "duration_seconds": meta.get("duration_seconds", 0),
                 "source_type": "generic",
             }

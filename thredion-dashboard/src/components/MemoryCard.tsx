@@ -61,11 +61,23 @@ function getInstagramEmbedUrl(url: string): string | null {
   }
 }
 
+function isBlockedThumbnailUrl(url: string): boolean {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return host.includes("instagram.com") || host.includes("cdninstagram.com") || host.includes("fbcdn.net");
+  } catch {
+    return false;
+  }
+}
+
 export default function MemoryCard({ memory, onDelete }: MemoryCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [showEmbed, setShowEmbed] = useState(false);
   const imp = importanceLevel(memory.importance_score);
   const PlatformIcon = PlatformIcons[memory.platform] || Link;
+  const safeThumbnailUrl = memory.thumbnail_url && !isBlockedThumbnailUrl(memory.thumbnail_url)
+    ? memory.thumbnail_url
+    : "";
 
   // Derive embed URL for supported platforms
   const embedUrl =
@@ -122,10 +134,10 @@ export default function MemoryCard({ memory, onDelete }: MemoryCardProps) {
             allowFullScreen
           />
         </div>
-      ) : memory.thumbnail_url ? (
+      ) : safeThumbnailUrl ? (
         <div className="relative mb-3 overflow-hidden rounded-xl border border-surface-200 dark:border-gray-700 cursor-pointer" onClick={() => embedUrl && setShowEmbed(true)}>
           <img
-            src={memory.thumbnail_url}
+            src={safeThumbnailUrl}
             alt={memory.title || "thumbnail"}
             className="h-40 w-full object-cover transition-transform group-hover:scale-105"
             onError={(e) => {
