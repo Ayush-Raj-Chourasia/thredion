@@ -90,9 +90,10 @@ def get_current_user(
     
     if not user:
         raise HTTPException(status_code=401, detail="User not found or inactive")
-    # Check is_active (may be attribute or dict value)
-    is_active = getattr(user, 'is_active', True)
-    if not is_active:
+    # Treat missing/NULL is_active as active for Supabase rows.
+    # Only an explicit False should block the session.
+    is_active = getattr(user, 'is_active', None)
+    if is_active is False:
         raise HTTPException(status_code=401, detail="User not found or inactive")
     return user
 
