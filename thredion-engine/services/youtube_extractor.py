@@ -487,13 +487,13 @@ def extract_metadata_only(video_id: str) -> YouTubeResult:
     
     return YouTubeResult(
         title=title,
-        content=title,  # Use title as real metadata, not fabricated copy
+        content="",
         thumbnail_url=thumbnail_url,
         duration_seconds=metadata.get("duration", 0),
         video_id=video_id,
         channel_name=metadata.get("channel", ""),
         source_type="metadata_only",  # 🔴 Be honest - this is degraded
-        transcript_length=len(title),
+        transcript_length=0,
         failure_reason="All transcription methods failed, returning metadata only",
         failure_class="permanent",
     )

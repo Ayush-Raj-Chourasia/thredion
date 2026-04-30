@@ -157,9 +157,9 @@ async def process_cognitive_entry(
         entry.source_type = metadata.get("source_type", "unknown")
         
         # Step 3: Attempt full audio transcription (best quality)
-        # Instagram/Twitter extraction is caption-first; audio transcription is
-        # expensive and frequently causes worker timeouts without adding value.
-        if platform in ("instagram", "twitter", "youtube"):
+        # YouTube should use actual transcript/audio whenever possible.
+        # If that fails, we refuse to save placeholder content.
+        if platform in ("instagram", "twitter"):
             transcript_result = None
         elif entry.source_type in ["supadata_api", "transcript24_api"]:
             logger.info(f"[COGNITIVE] Skipping audio transcription, already have {entry.source_type} transcript.")
@@ -168,7 +168,7 @@ async def process_cognitive_entry(
             try:
                 transcript_result = await asyncio.wait_for(
                     _try_transcription(url, platform),
-                    timeout=25,
+                    timeout=120 if platform == "youtube" else 25,
                 )
             except asyncio.TimeoutError:
                 logger.warning(f"[COGNITIVE] Audio transcription timed out for {url}")
@@ -198,7 +198,12 @@ async def process_cognitive_entry(
             entry.content = caption
             logger.info(f"[COGNITIVE] Using standard caption: {len(caption)} chars")
         else:
-            # Metadata only
+            # For YouTube we do not save fake placeholders.
+            # If we could not get an actual transcript/caption, fail rather than
+            # storing synthetic content.
+            if platform == "youtube":
+                raise RuntimeError("Could not extract a real YouTube transcript or caption")
+
             entry.content_quality = "metadata_only"
             entry.content = entry.title or url
             logger.info(f"[COGNITIVE] Metadata only: {entry.title}")

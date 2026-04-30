@@ -22,6 +22,42 @@ from core.config import settings
 
 logger = logging.getLogger(__name__)
 
+
+def _build_ydl_opts(*, download: bool = False, subtitles: bool = False) -> dict:
+    """Build yt-dlp options with optional proxy/cookies support."""
+    ydl_opts = {
+        'quiet': True,
+        'no_warnings': True,
+        'socket_timeout': 30,
+    }
+
+    proxy = os.getenv('YTDLP_PROXY')
+    cookies_file = os.getenv('YTDLP_COOKIES_FILE')
+    if proxy:
+        ydl_opts['proxy'] = proxy
+    if cookies_file and os.path.exists(cookies_file):
+        ydl_opts['cookiefile'] = cookies_file
+
+    if subtitles:
+        ydl_opts.update({
+            'skip_download': True,
+            'writesubtitles': True,
+            'allsubtitles': True,
+        })
+    elif download:
+        ydl_opts.update({
+            'format': 'bestaudio/best',
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'wav',
+                'preferredquality': '192',
+            }],
+            'ffmpeg_location': os.getenv('FFMPEG_PATH', 'ffmpeg'),
+            'outtmpl': os.path.join(tempfile.gettempdir(), f"thredion_audio_{uuid.uuid4().hex[:8]}.%(ext)s"),
+        })
+
+    return ydl_opts
+
 # ── Global Whisper Model Cache ─────────────────────────────
 _whisper_model: Optional[Any] = None
 _model_lock = asyncio.Lock()
@@ -106,12 +142,7 @@ async def get_video_metadata(url: str) -> Dict[str, Any]:
     
     def _extract():
         try:
-            ydl_opts = {
-                'quiet': True,
-                'no_warnings': True,
-                'extract_flat': False,
-                'socket_timeout': 30,
-            }
+            ydl_opts = _build_ydl_opts()
             
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
@@ -154,21 +185,8 @@ async def download_audio(url: str) -> Optional[str]:
     output_template = os.path.join(tmp_dir, f"thredion_audio_{uuid.uuid4().hex[:8]}.%(ext)s")
     
     def _download():
-        ffmpeg_path = os.getenv('FFMPEG_PATH', 'ffmpeg')
-        
-        ydl_opts = {
-            'format': 'bestaudio/best',
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'wav',
-                'preferredquality': '192',
-            }],
-            'ffmpeg_location': ffmpeg_path,
-            'quiet': True,
-            'no_warnings': True,
-            'outtmpl': output_template,
-            'socket_timeout': 30,
-        }
+        ydl_opts = _build_ydl_opts(download=True)
+        ydl_opts['outtmpl'] = output_template
         
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
