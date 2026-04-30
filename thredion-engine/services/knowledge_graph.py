@@ -32,7 +32,7 @@ def build_connections(new_memory: Memory, db: Session) -> list[dict]:
     existing = (
         db.query(Memory)
         .filter(Memory.id != new_memory.id)
-        .filter(Memory.user_phone == new_memory.user_phone)
+        .filter(Memory.user_id == new_memory.user_id)
         .filter(Memory.embedding.isnot(None))
         .all()
     )
@@ -69,6 +69,7 @@ def build_connections(new_memory: Memory, db: Session) -> list[dict]:
             continue
 
         conn = Connection(
+            user_id=new_memory.user_id,
             source_id=new_memory.id,
             target_id=memory.id,
             similarity_score=round(sim, 4),
@@ -108,7 +109,7 @@ def get_full_graph(db: Session, user_phone: str = "") -> dict:
     nodes = [
         {
             "id": m.id,
-            "title": m.title or m.summary[:40] or f"Memory #{m.id}",
+            "title": m.title or (m.summary[:40] if m.summary else f"Memory #{m.id}"),
             "category": m.category,
             "importance_score": m.importance_score,
             "url": m.url,

@@ -9,3 +9,8 @@ venv/
 *.db
 *.sqlite
 .cache/
+*.md
+!README.md
+*.pdf
+*.txt
+tests

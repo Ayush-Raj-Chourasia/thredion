@@ -1,0 +1,52 @@
+# Git
+.git
+.gitignore
+.github
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+.pytest_cache
+.egg
+dist
+build
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDEs
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation (not needed at runtime)
+*.md
+docs/
+.docs/
+
+# Testing
+tests/
+test_*.py
+*_test.py
+
+# Development artifacts
+*.log
+*.sqlite
+*.db
+thredion.db
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.zip

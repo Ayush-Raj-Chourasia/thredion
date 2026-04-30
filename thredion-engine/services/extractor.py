@@ -1,15 +1,23 @@
 """
 Thredion Engine — Content Extractor
-Extracts meaningful content from Instagram, Twitter/X, and article URLs.
+Extracts meaningful content from Instagram, Twitter/X, YouTube, and article URLs.
+Includes video transcription for audio-to-text conversion.
 """
 
 import re
 import logging
-from typing import Optional
+import asyncio
+from typing import Optional, Dict, Any
 from dataclasses import dataclass
 
 import requests
+import yt_dlp
 from bs4 import BeautifulSoup
+
+# Import specialized extractors
+from services.youtube_extractor import extract_youtube as _youtube_extract
+from services.instagram_extractor import extract_instagram as _instagram_extract
+from services.twitter_extractor import extract_twitter as _twitter_extract
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +39,9 @@ class ExtractedContent:
     content: str
     thumbnail_url: str
     url: str
+    duration_seconds: int = 0  # For videos
+    is_video: bool = False  # Flag for video content
+    video_metadata: dict = None  # Extra video metadata
 
 
 def detect_platform(url: str) -> str:
@@ -48,6 +59,35 @@ def detect_platform(url: str) -> str:
         return "tiktok"
     else:
         return "article"
+
+
+def _transcribe_video_to_text(url: str) -> Optional[str]:
+    """
+    Try to transcribe a video to text using local faster-whisper.
+    This is a synchronous wrapper that runs transcription.
+    Returns the transcript text or None if transcription fails.
+    """
+    try:
+        import os
+        from services.transcriber import transcribe_short_video
+        
+        logger.info(f"🎤 Attempting to transcribe: {url}")
+        
+        # Run async transcription in a new event loop
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            transcript = loop.run_until_complete(transcribe_short_video(url))
+            if transcript:
+                logger.info(f"✅ Transcription successful: {len(transcript)} chars")
+                return transcript
+        finally:
+            loop.close()
+        
+        return None
+    except Exception as e:
+        logger.warning(f"⚠️ Transcription failed: {e}. Using metadata as fallback.")
+        return None
 
 
 def extract_from_url(url: str) -> ExtractedContent:
@@ -145,7 +185,30 @@ def _parse_instagram_url(url: str) -> dict:
 
 
 def _extract_instagram(url: str) -> ExtractedContent:
-    """Extract content from an Instagram post/reel URL."""
+    """Extract content from an Instagram post/reel URL using specialized extractor."""
+    try:
+        result = _instagram_extract(url)
+        
+        content = result.content or result.title or ""
+        if not content:
+            # Fallback to URL-structure-based extraction
+            url_info = _parse_instagram_url(url)
+            content = f"Instagram {url_info['type']} — Shared via Instagram."
+        
+        return ExtractedContent(
+            platform="instagram",
+            title=(result.title or "Instagram Post")[:512],
+            content=content[:2000],
+            thumbnail_url=result.thumbnail_url or "",
+            url=url,
+        )
+    except Exception as e:
+        logger.warning(f"Specialized Instagram extractor failed: {e}, falling back")
+        return _extract_instagram_legacy(url)
+
+
+def _extract_instagram_legacy(url: str) -> ExtractedContent:
+    """Legacy Instagram extraction as fallback."""
     url_info = _parse_instagram_url(url)
     content_type = url_info["type"]
     shortcode = url_info["shortcode"]
@@ -281,8 +344,30 @@ def _extract_instagram(url: str) -> ExtractedContent:
 # ── Twitter / X ───────────────────────────────────────────────
 
 def _extract_twitter(url: str) -> ExtractedContent:
-    """Extract content from a Twitter/X post URL."""
-    # Normalize x.com → twitter.com for oEmbed
+    """Extract content from a Twitter/X post URL using specialized extractor."""
+    try:
+        result = _twitter_extract(url)
+        
+        content = result.content or ""
+        title = result.title or "Tweet"
+        if result.author_name:
+            title = f"Tweet by {result.author_name}"
+        
+        return ExtractedContent(
+            platform="twitter",
+            title=title[:512],
+            content=content[:2000],
+            thumbnail_url=result.thumbnail_url or "",
+            url=url,
+        )
+    except Exception as e:
+        logger.warning(f"Specialized Twitter extractor failed: {e}, falling back")
+        return _extract_twitter_legacy(url)
+
+
+def _extract_twitter_legacy(url: str) -> ExtractedContent:
+    """Legacy Twitter extraction as fallback."""
+    # Normalize x.com -> twitter.com for oEmbed
     normalized = url.replace("x.com", "twitter.com")
     try:
         oembed_url = f"https://publish.twitter.com/oembed?url={normalized}&omit_script=true"
@@ -312,23 +397,101 @@ def _extract_twitter(url: str) -> ExtractedContent:
 # ── YouTube ───────────────────────────────────────────────────
 
 def _extract_youtube(url: str) -> ExtractedContent:
-    """Extract content from a YouTube URL."""
+    """
+    Extract content from a YouTube URL using the specialized extractor.
+    This wraps the new 5-layer extraction pipeline.
+    """
+    try:
+        result = _youtube_extract(url)
+        
+        content = result.content or ""
+        if not content:
+            # Fallback to title/description
+            content = result.title or url
+        
+        return ExtractedContent(
+            platform="youtube",
+            title=(result.title or "YouTube Video")[:512],
+            content=content[:3000],
+            thumbnail_url=result.thumbnail_url or f"https://img.youtube.com/vi/{result.video_id}/maxresdefault.jpg",
+            url=url,
+            is_video=True,
+            duration_seconds=result.duration_seconds or result.duration_sec or 0,
+        )
+    except Exception as e:
+        logger.warning(f"Specialized YouTube extractor failed: {e}, falling back")
+        return _extract_youtube_legacy(url)
+
+
+def _extract_youtube_legacy(url: str) -> ExtractedContent:
+    """Legacy YouTube extraction as fallback."""
+    metadata = {
+        'uploader': '',
+        'description': '',
+        'view_count': 0,
+        'duration': 0,
+    }
+    
+    # Get metadata first
+    try:
+        with yt_dlp.YoutubeDL({'quiet': True, 'no_warnings': True}) as ydl:
+            info = ydl.extract_info(url, download=False)
+            metadata['duration'] = int(info.get('duration', 0))
+            metadata['uploader'] = info.get('uploader', '')
+            metadata['description'] = info.get('description', '')[:500]
+            metadata['view_count'] = info.get('view_count', 0)
+    except Exception as e:
+        logger.warning(f"Could not get YouTube metadata: {e}")
+    
+    title = "YouTube Video"
+    thumbnail = ""
+    
+    # Try oembed for title and thumbnail
     try:
         oembed_url = f"https://www.youtube.com/oembed?url={url}&format=json"
         resp = requests.get(oembed_url, headers=HEADERS, timeout=10)
         if resp.status_code == 200:
             data = resp.json()
-            return ExtractedContent(
-                platform="youtube",
-                title=data.get("title", "YouTube Video")[:512],
-                content=data.get("title", "")[:2000],
-                thumbnail_url=data.get("thumbnail_url", ""),
-                url=url,
-            )
+            title = data.get("title", "YouTube Video")[:512]
+            thumbnail = data.get("thumbnail_url", "")
     except Exception:
         pass
-
-    return _extract_meta_tags(url, "youtube")
+    
+    # Transcription logic
+    transcript = None
+    duration = metadata.get('duration', 0)
+    
+    if duration > 0 and duration <= 300:  # <= 5 minutes
+        logger.info(f"📹 Short video detected ({duration}s). Transcribing...")
+        transcript = _transcribe_video_to_text(url)
+    elif duration > 300:
+        logger.info(f"📹 Long video detected ({duration}s). Skipping local transcription.")
+        # For production: would queue for async processing
+    else:
+        logger.debug(f"Could not determine video duration for {url}")
+    
+    # Create result with transcript as content if available
+    content = ""
+    if transcript:
+        # Use full transcript as content
+        logger.info(f"Using transcribed content: {len(transcript)} chars")
+        content = transcript[:3000]  # Limit to 3000 chars for LLM processing
+    else:
+        # Fallback to description if no transcript
+        content = f"{title}\n\n{metadata['description']}"
+        if metadata['uploader']:
+            content += f"\nUploaded by: {metadata['uploader']}"
+    
+    return ExtractedContent(
+        platform="youtube",
+        title=title,
+        content=content,
+        thumbnail_url=thumbnail,
+        url=url,
+        is_video=True,
+        duration_seconds=duration,
+        video_metadata=metadata,
+    )
 
 
 # ── Article ───────────────────────────────────────────────────

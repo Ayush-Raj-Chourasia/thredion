@@ -109,6 +109,37 @@ Not just cards — a full cognitive interface with:
 | **Explainable AI** | Every importance score comes with transparent reasoning |
 | **6 Platforms** | Instagram, Twitter/X, YouTube, Reddit, TikTok, and any article URL |
 | **3-Tier Fallback** | Embedding: sentence-transformers → TF-IDF → hash; Classification: GPT → keywords |
+| **Cognitive Layer (v2)** | Support for Voice Notes, Startup Ideas, and Emotional Reflections |
+
+---
+
+## 🧠 Cognitive Layer (v2) — New Features
+
+The Cognitive Layer expansion turns Thredion from a link saver into a **unified capture and structuring engine** for your daily life.
+
+### 1. Bot-First Multi-Input
+Send anything to the bot. It's no longer just links:
+- **Learn (🔗 Links)**: Reels, YouTube, Articles. Same as v1 but structured with mode tags.
+- **Think (💡 Ideas)**: Type your startup ideas, business observations, or theories.
+- **Reflect (🪞 Inner State)**: Log your dreams, emotional reflections, or daily gratitude.
+
+### 2. Voice-to-Mind (Transcription)
+Record a voice note of a spontaneous idea while walking or driving. The bot:
+- Transcribes using **Faster-Whisper** (CPU-optimized).
+- Summarizes the core insight.
+- Automatically places it in the right Layer (Learn/Think/Reflect).
+
+### 3. Smart Semantic Bucketing
+The AI doesn't just categorize; it **buckets**. It prefers your existing categories (e.g., "Marketing", "Health") to avoid fragmentation, and only creates new buckets when fundamentally new topics emerge.
+
+### 4. Actionability & Emotion
+Every "Think" entry receives an **Actionability Score (0-1)** telling you how ready the idea is for execution. "Reflect" entries capture your **Emotional Tone** (Motivated, Reflective, Anxious) to help metadata-aware resurfacing.
+
+### 5. Weekly Insight Dashboard
+A new Next.js interface at `/cognitive` that gives you a high-level view of your week:
+- How many items you learned.
+- How many original ideas you had.
+- Your top actionable insight of the week.
 
 ---
 
@@ -219,10 +250,13 @@ Dashboard runs at `http://localhost:3000`
 
 1. Create a free [Twilio account](https://www.twilio.com/try-twilio)
 2. Go to Messaging → Try it Out → WhatsApp Sandbox
-3. Set webhook URL to: `https://thredion-api.azurewebsites.net/api/whatsapp/webhook` (POST)
+3. Set webhook URL to: `https://twilio-router.vercel.app/api/webhook` (POST)
 4. Add Twilio credentials to `.env`
 5. Join the sandbox: [**Open WhatsApp →**](https://wa.me/14155238886?text=join%20deep-third) (send **`join deep-third`**)
 6. Send any link to the bot and it processes through the full cognitive pipeline
+
+> The Twilio webhook should point to the standalone router, not directly to Azure.
+> Azure remains a downstream project target that the router can forward to.
 
 ---
 
@@ -239,7 +273,8 @@ Dashboard runs at `http://localhost:3000`
 | `GET` | `/api/stats` | Dashboard statistics |
 | `GET` | `/api/categories` | Category distribution |
 | `GET` | `/api/random` | Random memory for inspiration |
-| `POST` | `/api/whatsapp/webhook` | Twilio WhatsApp webhook |
+| `POST` | `/api/whatsapp/webhook` | Thredion backend WhatsApp webhook |
+| `POST` | `/api/twilio/webhook` | Legacy router endpoint inside the dashboard app |
 
 ---
 

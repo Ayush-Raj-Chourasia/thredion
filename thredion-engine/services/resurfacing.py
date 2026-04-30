@@ -37,8 +37,8 @@ def find_resurfaceable(new_memory: Memory, db: Session) -> list[dict]:
     old_memories = (
         db.query(Memory)
         .filter(Memory.id != new_memory.id)
-        .filter(Memory.user_phone == new_memory.user_phone)
-        .filter(Memory.url != new_memory.url)
+        .filter(Memory.user_id == new_memory.user_id)
+        .filter(Memory.source_url != new_memory.source_url)
         .filter(Memory.embedding.isnot(None))
         .filter(Memory.created_at < cutoff)
         .all()
@@ -49,8 +49,8 @@ def find_resurfaceable(new_memory: Memory, db: Session) -> list[dict]:
         old_memories = (
             db.query(Memory)
             .filter(Memory.id != new_memory.id)
-            .filter(Memory.user_phone == new_memory.user_phone)
-            .filter(Memory.url != new_memory.url)
+            .filter(Memory.user_id == new_memory.user_id)
+            .filter(Memory.source_url != new_memory.source_url)
             .filter(Memory.embedding.isnot(None))
             .all()
         )
@@ -80,6 +80,7 @@ def find_resurfaceable(new_memory: Memory, db: Session) -> list[dict]:
             # Create resurfacing record
             reason = _build_reason(new_memory, memory, sim)
             resurface = ResurfacedMemory(
+                user_id=new_memory.user_id,
                 memory_id=memory.id,
                 triggered_by_id=new_memory.id,
                 reason=reason,
@@ -136,8 +137,9 @@ def get_recent_resurfaced(db: Session, limit: int = 20, user_phone: str = "") ->
     q = db.query(ResurfacedMemory)
     if user_phone:
         # Only resurfaced entries whose memory belongs to this user
-        user_mem_ids = db.query(Memory.id).filter(Memory.user_phone == user_phone).subquery()
-        q = q.filter(ResurfacedMemory.memory_id.in_(user_mem_ids))
+        user = db.query(User).filter(User.phone_number == user_phone).first()
+        if user:
+            q = q.filter(ResurfacedMemory.user_id == user.id)
     records = (
         q.order_by(ResurfacedMemory.created_at.desc())
         .limit(limit)

@@ -9,10 +9,8 @@ ENV/
 .env.*.local
 .venv
 
-# ==========================================
-# HACKATHON PDFS (NOT PART OF SUBMISSION)
-# ==========================================
-*.pdf
+
+
 
 # ==========================================
 # PYTHON
@@ -169,6 +167,32 @@ docs
 *.md
 !README.md
 
-Hack The Thread Official Problem Statement.pdf
-Submission Guidelines.pdf
-azure-logs.zip
+# ==========================================
+# THREDION SECURE
+# ==========================================
+.env
+.env*
+secrets/
+*.secret
+auth_info/
+bot/auth_info/
+*.log
+*.sqlite
+thredion.db
+migrate_*.py
+test_*.py
+seed_*.py
+insert_db_user.py
+inspect_db*.py
+prepare_deploy.py
+deploy_*.py
+smoke_test*.log
+walkthrough.md
+*.zip
+*.pdf
+deploy_temp/
+tmp/
+temp/
+!thredion-dashboard/src/lib/
+.vercel
+.env*.local

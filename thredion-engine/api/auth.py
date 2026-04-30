@@ -71,9 +71,9 @@ def get_current_user(
 
     token = authorization.split(" ", 1)[1]
     claims = _decode_token(token)
-    phone = claims.get("sub", "")
+    phone_number = claims.get("sub", "")
 
-    user = db.query(User).filter(User.phone == phone).first()
+    user = db.query(User).filter(User.phone_number == phone_number).first()
     if not user or not user.is_active:
         raise HTTPException(status_code=401, detail="User not found or inactive")
     return user
@@ -177,9 +177,9 @@ def verify_otp(phone: str, code: str, db: Session = Depends(get_db)):
     otp.is_used = True
 
     # Upsert user
-    user = db.query(User).filter(User.phone == phone).first()
+    user = db.query(User).filter(User.phone_number == phone).first()
     if not user:
-        user = User(phone=phone)
+        user = User(phone_number=phone)
         db.add(user)
     user.last_login = now
 
@@ -192,7 +192,7 @@ def verify_otp(phone: str, code: str, db: Session = Depends(get_db)):
         "token": token,
         "user": {
             "id": user.id,
-            "phone": user.phone,
+            "phone_number": user.phone_number,
             "name": user.name,
             "created_at": user.created_at.isoformat(),
         },
@@ -204,7 +204,7 @@ def get_me(user: User = Depends(get_current_user)):
     """Return the currently authenticated user."""
     return {
         "id": user.id,
-        "phone": user.phone,
+        "phone_number": user.phone_number,
         "name": user.name,
         "created_at": user.created_at.isoformat(),
     }

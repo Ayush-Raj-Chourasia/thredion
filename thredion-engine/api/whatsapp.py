@@ -11,7 +11,7 @@ from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
 
 from db.database import get_db
-from services.pipeline import process_url
+from app.services.pipeline import process_incoming
 from api.routes import notify_change
 
 logger = logging.getLogger(__name__)
@@ -41,39 +41,37 @@ async def whatsapp_webhook(
     body = form_data.get("Body", "") or ""
     from_number = form_data.get("From", "unknown") or "unknown"
     
-    # Clean phone number
+    # Clear phone number
     user_phone = str(from_number).replace("whatsapp:", "").strip() or "unknown"
+    
+    # Check for voice media
+    voice_url = None
+    media_url = form_data.get("MediaUrl0")
+    media_content_type = form_data.get("MediaContentType0")
+    
+    if media_url and ("audio" in media_content_type or "ogg" in media_content_type):
+        voice_url = media_url
+        logger.info(f"[WhatsApp] Voice note from {user_phone}: {voice_url}")
     
     logger.info(f"[WhatsApp] Message from {user_phone}: {body}")
 
-    # Extract URLs from message
-    urls = URL_PATTERN.findall(str(body))
-
-    if not urls:
-        # No URL found — send help message
-        reply = _build_help_reply()
+    # Process via the new pipeline
+    try:
+        result = await process_incoming(
+            phone_number=user_phone,
+            message_text=body,
+            voice_file_url=voice_url
+        )
+        
+        if result.get("processing_status") == "failed":
+            return _twiml_response("⚠️ Something went wrong, but I've saved your raw input.")
+        
+        reply = _build_cognitive_reply(result)
         return _twiml_response(reply)
-
-    # Process each URL
-    replies = []
-    thumbnail_url = ""
-    for url in urls[:3]:  # Max 3 URLs per message
-        try:
-            result = process_url(url, user_phone, db)
-            if result.get("duplicate"):
-                replies.append(_build_duplicate_reply(result))
-            else:
-                replies.append(_build_success_reply(result))
-                notify_change("memory_added", str(result.get("memory_id", "")))
-            # Capture thumbnail from the first result that has one
-            if not thumbnail_url and result.get("thumbnail_url"):
-                thumbnail_url = result["thumbnail_url"]
-        except Exception as e:
-            logger.error(f"[WhatsApp] Failed to process {url}: {e}")
-            replies.append(f"⚠️ Couldn't process: {url}\nError: {str(e)[:100]}")
-
-    full_reply = "\n\n---\n\n".join(replies)
-    return _twiml_response(full_reply, media_url=thumbnail_url)
+        
+    except Exception as e:
+        logger.error(f"[WhatsApp] Pipeline error: {e}")
+        return _twiml_response("⚠️ Exception occurred during processing. Raw input saved.")
 
 
 @router.get("/webhook")
@@ -96,61 +94,20 @@ def _build_duplicate_reply(result: dict) -> str:
     )
 
 
-def _build_success_reply(result: dict) -> str:
-    """Build a rich WhatsApp reply after processing a URL."""
+def _build_cognitive_reply(result: dict) -> str:
+    """Build a rich WhatsApp reply after processing a cognitive entry."""
     parts = []
-
-    # Header
-    parts.append("🧠 *Thredion — Memory Saved!*")
+    
+    parts.append("✅ *Captured!*")
+    parts.append(f"📂 *{result.get('bucket', 'General')}*")
+    
+    mode_icon = {"learn": "📚", "think": "💡", "reflect": "🪞"}.get(result.get("cognitive_mode", "learn"), "🧠")
+    parts.append(f"{mode_icon} *{result.get('cognitive_mode', 'learn').capitalize()}*")
+    
+    parts.append(f"📝 *{result.get('title', 'Untitled')}*")
     parts.append("")
-
-    # Summary
-    summary = result.get("summary", "Content saved.")
-    parts.append(f"📝 *Summary:* {summary}")
-
-    # Category
-    category = result.get("category", "Uncategorized")
-    parts.append(f"🏷️ *Category:* {category}")
-
-    # Importance
-    score = result.get("importance_score", 0)
-    bar = _importance_bar(score)
-    parts.append(f"⭐ *Importance:* {score}/100 {bar}")
-
-    # Tags
-    tags = result.get("tags", [])
-    if tags:
-        parts.append(f"🔖 *Tags:* {', '.join(tags[:5])}")
-
-    # Topic Graph
-    topics = result.get("topic_graph", [])
-    if topics:
-        parts.append(f"🌐 *Topics:* {' → '.join(topics[:4])}")
-
-    # Connections
-    connections = result.get("connections", [])
-    if connections:
-        parts.append("")
-        parts.append(f"🔗 *Connected to {len(connections)} related memory(s):*")
-        for conn in connections[:3]:
-            title = conn.get("connected_memory_title", "?")
-            sim = int(conn.get("similarity_score", 0) * 100)
-            parts.append(f"  • {title} ({sim}% similar)")
-
-    # Resurfaced
-    resurfaced = result.get("resurfaced", [])
-    if resurfaced:
-        parts.append("")
-        parts.append("💡 *Resurfaced Insight:*")
-        for r in resurfaced[:2]:
-            title = r.get("memory_title", "?")
-            reason = r.get("reason", "")
-            parts.append(f"  ↳ _{title}_")
-            parts.append(f"    {reason}")
-
-    parts.append("")
-    parts.append("📊 View dashboard: thredion.vercel.app")
-
+    parts.append(result.get("summary", "Summary not available."))
+    
     return "\n".join(parts)
 
 

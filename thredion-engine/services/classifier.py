@@ -74,18 +74,33 @@ KEYWORD_MAP: dict[str, list[str]] = {
 }
 
 
-def classify_content(text: str, url: str = "") -> ClassificationResult:
+async def classify_content(text: str, url: str = "") -> ClassificationResult:
     """
     Classify and summarize content.
     Uses OpenAI API if key is available, otherwise keyword-based fallback.
     """
     combined_text = f"{text} {url}".strip()
-
+    
     if settings.OPENAI_API_KEY:
         try:
+            # Keep OpenAI sync for now as it's using sync client, but we can wrap it
             return _classify_with_openai(combined_text)
         except Exception as e:
-            logger.warning(f"OpenAI classification failed: {e}. Falling back to keywords.")
+            logger.warning(f"OpenAI classification failed: {e}. Trying Groq fallback.")
+    
+    if settings.GROQ_API_KEY:
+        try:
+            from services.llm_processor import process_with_groq
+            structured = await process_with_groq(combined_text, platform="fallback")
+            if structured:
+                return ClassificationResult(
+                    category=structured.bucket,
+                    summary=structured.summary,
+                    tags=structured.tags,
+                    topic_graph=[structured.bucket] + structured.tags[:2]
+                )
+        except Exception as e:
+            logger.warning(f"Groq fallback failed: {e}. Falling back to keywords.")
 
     return _classify_with_keywords(combined_text)
 

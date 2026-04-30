@@ -1,6 +1,7 @@
 """
 Thredion Engine — Configuration
 Central configuration management for the cognitive memory engine.
+Supports: SQLite (local), PostgreSQL (Azure/Supabase), and managed deployments.
 """
 
 import os
@@ -18,15 +19,55 @@ if os.path.isdir("/home"):
 
 class Settings:
     # ── Database ──────────────────────────────────────────────
+    # Priority: 1) DATABASE_URL env var (explicit, e.g., PostgreSQL password)
+    #           2) SUPABASE_URL + SUPABASE_DB_PASSWORD → PostgreSQL
+    #           3) SQLite default (local dev, always works)
+    SUPABASE_URL: str = os.getenv("SUPABASE_URL", "")
+    SUPABASE_KEY: str = os.getenv("SUPABASE_KEY", "")
+    SUPABASE_DB_PASSWORD: str = os.getenv("SUPABASE_DB_PASSWORD", "")
     DATABASE_URL: str = os.getenv("DATABASE_URL", _default_db_path)
+    
+    # Auto-construct PostgreSQL connection string from Supabase if we have REAL password
+    # NOTE: SUPABASE_KEY (anon API key) is NOT a valid PostgreSQL password
+    if SUPABASE_URL and SUPABASE_DB_PASSWORD:
+        from urllib.parse import quote_plus
+        # Supabase URL format: https://xxxxxxxxxxxx.supabase.co
+        # Extract project ID and construct PostgreSQL connection with REAL password
+        _project_id = SUPABASE_URL.split("//")[1].split(".")[0]
+        _encoded_pw = quote_plus(SUPABASE_DB_PASSWORD)
+        DATABASE_URL = f"postgresql+psycopg2://postgres:{_encoded_pw}@db.{_project_id}.supabase.co:5432/postgres"
+    elif SUPABASE_URL and not SUPABASE_DB_PASSWORD:
+        # SUPABASE_URL set but no SUPABASE_DB_PASSWORD → use SQLite
+        # This allows app to run locally; production use requires real password
+        pass  # DATABASE_URL already set to default SQLite
 
     # ── OpenAI ────────────────────────────────────────────────
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
+
+    # ── Groq Cloud LLM (FREE TIER) ────────────────────────────
+    GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
+
+    # ── HuggingFace (Optional) ────────────────────────────────
+    HF_API_TOKEN: str = os.getenv("HF_API_TOKEN", "")
+    USE_HF_INFERENCE: bool = os.getenv("USE_HF_INFERENCE", "false").lower() == "true"
+
+    # ── Azure Queue Storage (for async jobs) ──────────────────
+    AZURE_QUEUE_CONNECTION_STRING: str = os.getenv("AZURE_QUEUE_CONNECTION_STRING", "")
+    AZURE_QUEUE_NAME: str = os.getenv("AZURE_QUEUE_NAME", "video-transcription-jobs")
+
+    # ── Video Processing Thresholds ───────────────────────────
+    SHORT_VIDEO_MAX_DURATION: int = int(os.getenv("SHORT_VIDEO_MAX_DURATION", "300"))  # 5 min
+    MEDIUM_VIDEO_MAX_DURATION: int = int(os.getenv("MEDIUM_VIDEO_MAX_DURATION", "1800"))  # 30 min
+    WHISPER_MODEL_SIZE: str = os.getenv("WHISPER_MODEL_SIZE", "base")  # base, tiny, small
 
     # ── Twilio WhatsApp ───────────────────────────────────────
     TWILIO_ACCOUNT_SID: str = os.getenv("TWILIO_ACCOUNT_SID", "")
     TWILIO_AUTH_TOKEN: str = os.getenv("TWILIO_AUTH_TOKEN", "")
     TWILIO_WHATSAPP_NUMBER: str = os.getenv("TWILIO_WHATSAPP_NUMBER", "")
+
+    # ── External Extractors (Premium Fallbacks) ───────────────
+    SUPADATA_API_KEY: str = os.getenv("SUPADATA_API_KEY", "")
+    SOCIALKIT_API_KEY: str = os.getenv("SOCIALKIT_API_KEY", "")
 
     # ── Authentication ────────────────────────────────────────
     JWT_SECRET: str = os.getenv("JWT_SECRET", "thredion-secret-change-in-prod")
