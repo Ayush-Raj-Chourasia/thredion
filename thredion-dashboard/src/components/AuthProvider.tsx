@@ -10,7 +10,7 @@ import {
 import { getAuthToken, setAuthToken, clearAuth, getMe } from "@/lib/api";
 
 interface AuthUser {
-  id: number;
+  id: string;
   phone: string;
   name: string;
   created_at: string;

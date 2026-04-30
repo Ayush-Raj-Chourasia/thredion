@@ -21,7 +21,7 @@ import type { Memory } from "@/lib/types";
 
 interface MemoryCardProps {
   memory: Memory;
-  onDelete?: (id: number) => void;
+  onDelete?: (id: string) => void;
 }
 
 const PlatformIcons: Record<string, React.ElementType> = {

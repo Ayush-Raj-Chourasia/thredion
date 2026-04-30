@@ -47,7 +47,7 @@ function Dashboard({
   user,
   onLogout,
 }: {
-  user: { id: number; phone: string; name: string };
+  user: { id: string; phone: string; name: string };
   onLogout: () => void;
 }) {
   // ── State ─────────────────────────────────────────────
@@ -178,7 +178,7 @@ function Dashboard({
     }
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: string) => {
     try {
       await apiDeleteMemory(id);
       setMemories((prev) => prev.filter((m) => m.id !== id));

@@ -147,7 +147,7 @@ def list_memories(
 
 
 @router.get("/memories/{memory_id}")
-def get_memory(memory_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_memory(memory_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Get a single memory with its connections (owned by current user)."""
     memory = db.query(Memory).filter(Memory.id == memory_id, Memory.user_id == user.id).first()
     if not memory:
@@ -178,7 +178,7 @@ async def create_memory(
 
 
 @router.delete("/memories/{memory_id}")
-def delete_memory(memory_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def delete_memory(memory_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Delete a memory owned by the current user."""
     memory = db.query(Memory).filter(Memory.id == memory_id, Memory.user_id == user.id).first()
     if not memory:

@@ -508,45 +508,11 @@ def extract_youtube(url: str) -> YouTubeResult:
     if result:
         logger.info(f"Layer 1 (transcript-api) succeeded for {video_id}")
         return result
-    
-    # Delay before Layer 2 to reduce YouTube IP ban risk
-    time.sleep(1.5)
-    
-    # Layer 2: Try yt-dlp subtitles
-    result = extract_with_ytdlp_subtitles(video_id)
-    if result:
-        logger.info(f"Layer 2 (yt-dlp subtitles) succeeded for {video_id}")
-        return result
-        
-    # Layer 2.5A: Supadata API (paid)
-    result = extract_with_supadata(video_id)
-    if result:
-        logger.info(f"Layer 2.5A (Supadata) succeeded for {video_id}")
-        return result
-        
-    # Layer 2.5B: Transcript24 API (paid)
-    result = extract_with_transcript24(canonical_url, video_id)
-    if result:
-        logger.info(f"Layer 2.5B (Transcript24) succeeded for {video_id}")
-        return result
-    
-    # Layer 3: Queue local ASR (async) - only for short videos
-    try:
-        metadata = _get_youtube_metadata_quick(video_id)
-    except Exception:
-        metadata = {"duration": 0}
-    duration = metadata.get("duration", 0)
-    
-    if duration > 0 and duration <= 300:  # Short video, <5 min
-        logger.info(f"Layer 3 (local ASR): Queueing {video_id} for transcription")
-        result = extract_with_local_asr_queued(video_id)
-        if result and result.success:
-            return result
-    
-    # Layer 4: Could try cookies here if enabled, but skip for MVP
-    
-    # Layer 5: Graceful degradation
-    logger.warning(f"Falling back to metadata-only for {video_id}")
+
+    # The slower fallback layers are intentionally skipped in the request path.
+    # They are too expensive for synchronous web requests and were causing worker
+    # timeouts. Return metadata quickly instead.
+    logger.warning(f"Falling back directly to metadata-only for {video_id}")
     return extract_metadata_only(video_id)
 
 

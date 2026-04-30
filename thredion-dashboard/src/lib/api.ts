@@ -130,11 +130,11 @@ export async function getMemories(params?: {
   return apiFetch<Memory[]>(`/api/memories${query ? `?${query}` : ""}`);
 }
 
-export async function getMemory(id: number): Promise<Memory> {
+export async function getMemory(id: string): Promise<Memory> {
   return apiFetch<Memory>(`/api/memories/${id}`);
 }
 
-export async function deleteMemory(id: number): Promise<void> {
+export async function deleteMemory(id: string): Promise<void> {
   await apiFetch(`/api/memories/${id}`, { method: "DELETE" });
 }
 

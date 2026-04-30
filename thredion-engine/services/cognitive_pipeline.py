@@ -121,7 +121,14 @@ async def process_cognitive_entry(
         logger.info(f"[COGNITIVE] Processing {platform} URL: {url}")
         
         # Step 2: Extract metadata + captions (fast, always succeeds partially)
-        caption, metadata = await _extract_metadata(url, platform)
+        try:
+            caption, metadata = await asyncio.wait_for(
+                asyncio.to_thread(_extract_metadata_sync, url, platform),
+                timeout=12,
+            )
+        except asyncio.TimeoutError:
+            logger.warning(f"[COGNITIVE] Metadata extraction timed out for {url}")
+            caption, metadata = "", {"title": "", "thumbnail_url": "", "duration_seconds": 0, "source_type": "unknown"}
         entry.title = metadata.get("title", "")
         entry.thumbnail_url = metadata.get("thumbnail_url", "")
         entry.duration_seconds = metadata.get("duration_seconds", 0)
@@ -131,7 +138,7 @@ async def process_cognitive_entry(
         # Step 3: Attempt full audio transcription (best quality)
         # Instagram/Twitter extraction is caption-first; audio transcription is
         # expensive and frequently causes worker timeouts without adding value.
-        if platform in ("instagram", "twitter"):
+        if platform in ("instagram", "twitter", "youtube"):
             transcript_result = None
         elif entry.source_type in ["supadata_api", "transcript24_api"]:
             logger.info(f"[COGNITIVE] Skipping audio transcription, already have {entry.source_type} transcript.")
@@ -181,9 +188,14 @@ async def process_cognitive_entry(
         
         # Step 5: LLM cognitive structuring
         if entry.content and len(entry.content.strip()) > 15:
-            cognitive = await _structure_with_llm(
-                entry.content, platform, existing_buckets
-            )
+            try:
+                cognitive = await asyncio.wait_for(
+                    _structure_with_llm(entry.content, platform, existing_buckets),
+                    timeout=20,
+                )
+            except asyncio.TimeoutError:
+                logger.warning(f"[COGNITIVE] LLM structuring timed out for {url}")
+                cognitive = None
             if cognitive:
                 entry.cognitive_mode = cognitive.cognitive_mode
                 entry.summary = cognitive.summary
@@ -216,7 +228,7 @@ async def process_cognitive_entry(
 
 # ── Step 2: Extract Metadata + Captions ──────────────────────────
 
-async def _extract_metadata(url: str, platform: str) -> tuple:
+def _extract_metadata_sync(url: str, platform: str) -> tuple:
     """
     Extract metadata and captions using the specialized extractors.
     Returns (caption_text, metadata_dict).
@@ -257,7 +269,7 @@ async def _extract_metadata(url: str, platform: str) -> tuple:
         
         else:
             # Generic: try yt-dlp metadata
-            meta = await get_video_metadata(url)
+            meta = asyncio.run(get_video_metadata(url))
             caption = meta.get("description", "")
             metadata = {
                 "title": meta.get("title", ""),

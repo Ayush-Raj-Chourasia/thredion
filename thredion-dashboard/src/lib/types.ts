@@ -1,7 +1,7 @@
 /* ── Thredion Dashboard — API Types ─────────────────────── */
 
 export interface Memory {
-  id: number;
+  id: string;
   url: string;
   platform: string;
   title: string;
@@ -19,7 +19,7 @@ export interface Memory {
 }
 
 export interface ConnectionBrief {
-  connected_memory_id: number;
+  connected_memory_id: string;
   connected_memory_title: string;
   connected_memory_summary: string;
   connected_memory_category: string;
@@ -27,13 +27,13 @@ export interface ConnectionBrief {
 }
 
 export interface ResurfacedMemory {
-  id: number;
-  memory_id: number;
+  id: string;
+  memory_id: string;
   memory_title: string;
   memory_summary: string;
   memory_category: string;
   memory_url: string;
-  triggered_by_id: number;
+  triggered_by_id: string;
   triggered_by_title: string;
   reason: string;
   similarity_score: number;
@@ -41,7 +41,7 @@ export interface ResurfacedMemory {
 }
 
 export interface GraphNode {
-  id: number;
+  id: string;
   title: string;
   category: string;
   importance_score: number;
@@ -49,8 +49,8 @@ export interface GraphNode {
 }
 
 export interface GraphEdge {
-  source: number;
-  target: number;
+  source: string;
+  target: string;
   weight: number;
 }
 
@@ -74,7 +74,7 @@ export interface CategoryCount {
 }
 
 export interface ProcessResult {
-  memory_id: number;
+  memory_id: string;
   url: string;
   platform: string;
   title: string;
