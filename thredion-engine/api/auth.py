@@ -199,36 +199,47 @@ def verify_otp(phone: str, code: str, db: Session = Depends(get_db)):
     
     from db.database import SupabaseSession
     if isinstance(db, SupabaseSession):
-        # 1. Check OTP
-        otp_res = db.sb.table("otp_codes").select("*").eq("phone", phone).eq("code", code).eq("is_used", False).gt("expires_at", now.isoformat()).order("created_at", desc=True).limit(1).execute()
-        if not otp_res.data:
-            raise HTTPException(status_code=400, detail="Invalid or expired OTP")
-        otp_id = otp_res.data[0]['id']
-        
-        # 2. Get or create user
-        user_res = db.sb.table("users").select("*").eq("phone_number", phone).limit(1).execute()
-        if not user_res.data:
-            logger.info(f"Creating new user for phone: {phone}")
-            new_user_res = db.sb.table("users").insert({"phone_number": phone, "last_login": now.isoformat()}).execute()
-            user_data = new_user_res.data[0]
-        else:
-            user_data = user_res.data[0]
-            db.sb.table("users").update({"last_login": now.isoformat()}).eq("id", user_data['id']).execute()
+        try:
+            # 1. Check OTP
+            otp_res = db.sb.table("otp_codes").select("*").eq("phone", phone).eq("code", code).eq("is_used", False).gt("expires_at", now.isoformat()).order("created_at", desc=True).limit(1).execute()
+            if not otp_res.data:
+                raise HTTPException(status_code=400, detail="Invalid or expired OTP")
+            otp_id = otp_res.data[0]['id']
             
-        token = _create_token(phone)
-        
-        # 3. Mark OTP as used
-        db.sb.table("otp_codes").update({"is_used": True}).eq("id", otp_id).execute()
-        
-        return {
-            "token": token,
-            "user": {
-                "id": user_data['id'],
-                "phone_number": user_data.get('phone_number'),
-                "name": user_data.get('name'),
-                "created_at": user_data.get('created_at') or now.isoformat(),
-            },
-        }
+            # 2. Get or create user
+            user_res = db.sb.table("users").select("*").eq("phone_number", phone).limit(1).execute()
+            if not user_res.data:
+                logger.info(f"Creating new user for phone: {phone}")
+                # Remove last_login as it might be missing from some schema versions
+                new_user_res = db.sb.table("users").insert({"phone_number": phone}).execute()
+                if not new_user_res.data:
+                    raise Exception("Failed to create user record")
+                user_data = new_user_res.data[0]
+            else:
+                user_data = user_res.data[0]
+                # Skip last_login update if column is missing from production
+                # db.sb.table("users").update({"last_login": now.isoformat()}).eq("id", user_data['id']).execute()
+                
+            token = _create_token(phone)
+            
+            # 3. Mark OTP as used
+            db.sb.table("otp_codes").update({"is_used": True}).eq("id", otp_id).execute()
+            
+            return {
+                "token": token,
+                "user": {
+                    "id": user_data['id'],
+                    "phone": user_data.get('phone_number'),
+                    "phone_number": user_data.get('phone_number'),
+                    "name": user_data.get('name'),
+                    "created_at": str(user_data.get('created_at') or now.isoformat()),
+                },
+            }
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"REST verify_otp error: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
     otp = (
         db.query(OTPCode)
@@ -293,6 +304,7 @@ def get_me(user: User = Depends(get_current_user)):
         
     return {
         "id": getattr(user, 'id', None),
+        "phone": getattr(user, 'phone_number', None),
         "phone_number": getattr(user, 'phone_number', None),
         "name": getattr(user, 'name', None),
         "created_at": created_at_str,

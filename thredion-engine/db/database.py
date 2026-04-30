@@ -100,6 +100,9 @@ class SupabaseRow:
         return self._data.get(key, default)
         
     def __getattr__(self, name):
+        # Alias phone to phone_number for frontend compatibility
+        if name == 'phone':
+            return self._data.get('phone_number')
         # Prevent AttributeError for missing columns
         return None
     
@@ -126,6 +129,13 @@ class SupabaseSession:
             return SupabaseRow(result.data[0])
         return None
     
+    def get_user_by_phone(self, phone: str):
+        """Look up a user by phone number."""
+        result = self.sb.table("users").select("*").eq("phone_number", str(phone)).limit(1).execute()
+        if result.data:
+            return SupabaseRow(result.data[0])
+        return None
+
     def get_user_by_id(self, user_id: str):
         """Look up a user by ID."""
         result = self.sb.table("users").select("*").eq("id", str(user_id)).limit(1).execute()
