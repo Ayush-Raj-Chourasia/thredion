@@ -9,9 +9,11 @@ import re
 from datetime import datetime, timedelta, timezone
 
 try:
-    from jose import jwt
+    from jose import jwt, JWTError
+    from jose.exceptions import ExpiredSignatureError
 except ImportError:
     import jwt
+    from jwt.exceptions import ExpiredSignatureError, InvalidTokenError as JWTError
 from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.orm import Session
 
@@ -54,10 +56,13 @@ def _decode_token(token: str) -> dict:
     """Decode and verify a JWT. Raises on invalid/expired."""
     try:
         return jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
-    except jwt.ExpiredSignatureError:
+    except ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expired")
-    except jwt.InvalidTokenError:
+    except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
+    except Exception as e:
+        logger.error(f"JWT decode error: {e}")
+        raise HTTPException(status_code=401, detail="Could not validate credentials")
 
 
 # ── Dependency: current authenticated user ────────────────────
@@ -76,8 +81,18 @@ def get_current_user(
     claims = _decode_token(token)
     phone_number = claims.get("sub", "")
 
-    user = db.query(User).filter(User.phone_number == phone_number).first()
-    if not user or not user.is_active:
+    # Support both SQLAlchemy and Supabase REST sessions
+    from db.database import SupabaseSession
+    if isinstance(db, SupabaseSession):
+        user = db.get_user_by_phone(phone_number)
+    else:
+        user = db.query(User).filter(User.phone_number == phone_number).first()
+    
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found or inactive")
+    # Check is_active (may be attribute or dict value)
+    is_active = getattr(user, 'is_active', True)
+    if not is_active:
         raise HTTPException(status_code=401, detail="User not found or inactive")
     return user
 
@@ -129,6 +144,27 @@ def send_otp(phone: str, db: Session = Depends(get_db)):
     code = f"{random.randint(100000, 999999)}"
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=settings.OTP_EXPIRY_MINUTES)
 
+    from db.database import SupabaseSession
+    if isinstance(db, SupabaseSession):
+        # Invalidate previous unused OTPs
+        db.sb.table("otp_codes").update({"is_used": True}).eq("phone", phone).eq("is_used", False).execute()
+        
+        # Store new OTP
+        data = {
+            "phone": phone,
+            "code": code,
+            "is_used": False,
+            "expires_at": expires_at.isoformat(),
+        }
+        db.sb.table("otp_codes").insert(data).execute()
+        
+        # Send via WhatsApp
+        sent = _send_otp_whatsapp(phone, code)
+        if not sent:
+            raise HTTPException(status_code=502, detail="Failed to send OTP. Check Twilio config.")
+    
+        return {"detail": "OTP sent via WhatsApp", "expires_in_seconds": settings.OTP_EXPIRY_MINUTES * 60}
+
     # Invalidate any previous unused OTPs for this phone
     db.query(OTPCode).filter(
         OTPCode.phone == phone,
@@ -160,6 +196,39 @@ def verify_otp(phone: str, code: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail=str(e))
 
     now = datetime.now(timezone.utc)
+    
+    from db.database import SupabaseSession
+    if isinstance(db, SupabaseSession):
+        # 1. Check OTP
+        otp_res = db.sb.table("otp_codes").select("*").eq("phone", phone).eq("code", code).eq("is_used", False).gt("expires_at", now.isoformat()).order("created_at", desc=True).limit(1).execute()
+        if not otp_res.data:
+            raise HTTPException(status_code=400, detail="Invalid or expired OTP")
+        otp_id = otp_res.data[0]['id']
+        
+        # 2. Get or create user
+        user_res = db.sb.table("users").select("*").eq("phone_number", phone).limit(1).execute()
+        if not user_res.data:
+            logger.info(f"Creating new user for phone: {phone}")
+            new_user_res = db.sb.table("users").insert({"phone_number": phone, "last_login": now.isoformat()}).execute()
+            user_data = new_user_res.data[0]
+        else:
+            user_data = user_res.data[0]
+            db.sb.table("users").update({"last_login": now.isoformat()}).eq("id", user_data['id']).execute()
+            
+        token = _create_token(phone)
+        
+        # 3. Mark OTP as used
+        db.sb.table("otp_codes").update({"is_used": True}).eq("id", otp_id).execute()
+        
+        return {
+            "token": token,
+            "user": {
+                "id": user_data['id'],
+                "phone_number": user_data.get('phone_number'),
+                "name": user_data.get('name'),
+                "created_at": user_data.get('created_at') or now.isoformat(),
+            },
+        }
 
     otp = (
         db.query(OTPCode)
@@ -210,12 +279,21 @@ def verify_otp(phone: str, code: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {type(e).__name__}")
 
 
+
 @router.get("/me")
 def get_me(user: User = Depends(get_current_user)):
     """Return the currently authenticated user."""
+    created_at = getattr(user, 'created_at', None)
+    if created_at and hasattr(created_at, 'isoformat'):
+        created_at_str = created_at.isoformat()
+    elif isinstance(created_at, str):
+        created_at_str = created_at
+    else:
+        created_at_str = None
+        
     return {
-        "id": user.id,
-        "phone_number": user.phone_number,
-        "name": user.name,
-        "created_at": user.created_at.isoformat(),
+        "id": getattr(user, 'id', None),
+        "phone_number": getattr(user, 'phone_number', None),
+        "name": getattr(user, 'name', None),
+        "created_at": created_at_str,
     }

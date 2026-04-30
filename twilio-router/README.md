@@ -27,7 +27,7 @@ Use this deployment as the single Twilio webhook URL. It can forward messages to
 
 ```json
 [
-  { "name": "thredion", "url": "https://thredion-api.azurewebsites.net/api/whatsapp/webhook", "aliases": ["main", "default"] },
+  { "name": "thredion", "url": "https://alphacalculus-thredion-api.hf.space/api/whatsapp/webhook", "aliases": ["main", "default"] },
   { "name": "project-b", "url": "https://project-b.example.com/api/webhook" }
 ]
 ```

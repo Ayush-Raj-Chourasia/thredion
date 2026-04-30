@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 
 from core.config import settings
-from db.models import Memory, ResurfacedMemory
+from db.models import Memory, ResurfacedMemory, User
 from services.embeddings import embedding_to_vector, cosine_similarity
 
 logger = logging.getLogger(__name__)
@@ -132,14 +132,11 @@ def _build_reason(new_memory: Memory, old_memory: Memory, similarity: float) -> 
     return " · ".join(reasons)
 
 
-def get_recent_resurfaced(db: Session, limit: int = 20, user_phone: str = "") -> list[dict]:
+def get_recent_resurfaced(db: Session, limit: int = 20, user_id: str = "") -> list[dict]:
     """Get recently resurfaced memories for the dashboard, scoped to a user."""
     q = db.query(ResurfacedMemory)
-    if user_phone:
-        # Only resurfaced entries whose memory belongs to this user
-        user = db.query(User).filter(User.phone_number == user_phone).first()
-        if user:
-            q = q.filter(ResurfacedMemory.user_id == user.id)
+    if user_id:
+        q = q.filter(ResurfacedMemory.user_id == user_id)
     records = (
         q.order_by(ResurfacedMemory.created_at.desc())
         .limit(limit)

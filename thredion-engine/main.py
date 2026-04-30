@@ -23,6 +23,8 @@ from api.routes import router as api_router
 from api.whatsapp import router as whatsapp_router
 from api.auth import router as auth_router
 from app.api.cognitive import router as cognitive_router
+from fastapi.responses import JSONResponse
+import traceback
 
 # ── Logging ───────────────────────────────────────────────────
 
@@ -41,13 +43,17 @@ async def lifespan(application: FastAPI):
     logger.info("=" * 60)
     logger.info("  THREDION ENGINE — AI Cognitive Memory Engine")
     logger.info("=" * 60)
-    logger.info("✓ Application started (database initialization deferred until first use)")
+    
+    # Initialize database tables on startup
+    try:
+        init_db()
+        logger.info("✓ Database initialized")
+    except Exception as e:
+        logger.error(f"✗ Database initialization failed: {e}")
+    
     logger.info(f"Embedding model: {settings.EMBEDDING_MODEL}")
-    logger.info(f"OpenAI configured: {'Yes' if settings.OPENAI_API_KEY else 'No (using fallback)'}")
-    logger.info(f"Twilio configured: {'Yes' if settings.TWILIO_ACCOUNT_SID else 'No'}")
-    logger.info(f"Frontend URL: {settings.FRONTEND_URL}")
-    logger.info(f"Docs: http://localhost:{settings.PORT}/docs")
-    # Pre-warm the embedding model in a background thread so the server starts fast
+    
+    # Pre-warm the embedding model in a background thread
     import threading
     def _prewarm():
         try:
@@ -55,9 +61,9 @@ async def lifespan(application: FastAPI):
             generate_embedding("warmup")
             logger.info("Embedding model pre-warmed ✓")
         except Exception as e:
-            logger.warning(f"Embedding pre-warm failed (will lazy-load later): {e}")
+            logger.warning(f"Embedding pre-warm failed: {e}")
     threading.Thread(target=_prewarm, daemon=True).start()
-    logger.info("=" * 60)
+    
     yield
     logger.info("Thredion Engine shutting down.")
 
@@ -65,13 +71,8 @@ async def lifespan(application: FastAPI):
 
 app = FastAPI(
     title="Thredion Engine",
-    description=(
-        "AI Cognitive Memory Engine — transforms social media saves "
-        "into an intelligent, searchable, self-organizing knowledge system."
-    ),
-    version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
+    description="AI Cognitive Memory Engine",
+    version="2.0.0",
     lifespan=lifespan,
 )
 
@@ -79,18 +80,24 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        settings.FRONTEND_URL,
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "https://thredion.vercel.app",
-        "https://thredion-ayush-raj-chourasias-projects.vercel.app",
-    ],
-    allow_origin_regex=r"https://thredion.*\.vercel\.app",
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc):
+    logger.error(f"Global error: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": "Internal Server Error",
+            "error_type": type(exc).__name__,
+            "error_message": str(exc),
+            "traceback": traceback.format_exc()
+        }
+    )
 
 # ── Routers ───────────────────────────────────────────────────
 
@@ -99,54 +106,24 @@ app.include_router(api_router)
 app.include_router(whatsapp_router)
 app.include_router(cognitive_router)
 
-# ── Health Endpoint (for Render FREE & monitoring) ──────────
+# ── Health & Root ─────────────────────────────────────────────
 
 @app.get("/health")
 def health_check():
-    """
-    Simple health endpoint for deployment platforms (Render, Railway, etc).
-    Used to:
-    - Keep Render from spinning down if pinged regularly
-    - Monitor uptime status
-    - Quick startup verification
-    """
     return {
         "status": "healthy",
-        "service": "thredion-engine",
-        "version": "1.0.0",
+        "version": "1.0.5",
         "timestamp": datetime.now().isoformat(),
     }
-
-
-# ── Root Endpoint ─────────────────────────────────────────────
-
 
 @app.get("/")
 def root():
     return {
         "name": "Thredion Engine",
-        "version": "1.0.0",
+        "version": "1.0.5",
         "status": "running",
-        "description": "AI Cognitive Memory Engine",
-        "docs": "/docs",
-        "endpoints": {
-            "health": "/health",
-            "auth_send_otp": "/auth/send-otp",
-            "auth_verify_otp": "/auth/verify-otp",
-            "auth_me": "/auth/me",
-            "memories": "/api/memories",
-            "graph": "/api/graph",
-            "resurfaced": "/api/resurfaced",
-            "stats": "/api/stats",
-            "categories": "/api/categories",
-            "random": "/api/random",
-            "process": "/api/process",
-            "whatsapp_webhook": "/api/whatsapp/webhook",
-        },
+        "db_url_type": "postgresql" if "postgresql" in settings.DATABASE_URL.lower() else "sqlite"
     }
-
-
-# ── Run ───────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     import uvicorn

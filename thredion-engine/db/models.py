@@ -7,9 +7,8 @@ import uuid
 from datetime import datetime, timezone
 from sqlalchemy import (
     Boolean, Column, String, Float, Text, DateTime, LargeBinary, ForeignKey,
-    UniqueConstraint, Integer
+    UniqueConstraint, Integer, JSON, UUID
 )
-from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from db.database import Base
 
@@ -68,15 +67,15 @@ class Memory(Base):
     
     title = Column(String(512), default="")
     summary = Column(Text, default="")
-    key_points = Column(JSONB, default=[])
+    key_points = Column(JSON, default=[])
     category = Column(String(100), default="Uncategorized")
-    tags = Column(JSONB, default=[])
+    tags = Column(JSON, default=[])
     importance_score = Column(Float, default=0.0)
-    importance_reasons = Column(JSONB, default=[])
+    importance_reasons = Column(JSON, default=[])
     
     # Cognitive & Metadata fields
     thumbnail_url = Column(String(2048), nullable=True)
-    topic_graph = Column(JSONB, default=[])
+    topic_graph = Column(JSON, default=[])
     content_quality = Column(String(50), default="pending")
     cognitive_mode = Column(String(50), default="learn")
     bucket = Column(String(100), default="Uncategorized")
@@ -160,9 +159,9 @@ class CognitiveEntry(Base):
     cleaned_text = Column(Text, default="")
     summary = Column(Text, default="")
     title = Column(String(512), default="")
-    key_points = Column(JSONB, default=[])
+    key_points = Column(JSON, default=[])
     bucket = Column(String(100), default="Uncategorized")
-    tags = Column(JSONB, default=[])
+    tags = Column(JSON, default=[])
     actionability_score = Column(Float, default=0.0)
     emotional_tone = Column(String(100), default="")
     confidence_score = Column(Float, default=0.0)

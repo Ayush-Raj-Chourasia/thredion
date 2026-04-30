@@ -113,6 +113,12 @@ def list_memories(
     db: Session = Depends(get_db),
 ):
     """List all memories for the authenticated user."""
+    from db.database import SupabaseSession
+    if isinstance(db, SupabaseSession):
+        user_id = str(getattr(user, 'id', user))
+        memories = db.get_memories(user_id, sort=sort, category=category, search=search, limit=limit)
+        return [_serialize_memory(m, getattr(user, 'phone_number', '')) for m in memories]
+    
     query = db.query(Memory).filter(Memory.user_id == user.id)
 
     if search:
@@ -137,7 +143,7 @@ def list_memories(
 
     memories = query.limit(limit).all()
 
-    return [_serialize_memory(m) for m in memories]
+    return [_serialize_memory(m, user.phone_number) for m in memories]
 
 
 @router.get("/memories/{memory_id}")
@@ -147,7 +153,7 @@ def get_memory(memory_id: int, user: User = Depends(get_current_user), db: Sessi
     if not memory:
         raise HTTPException(status_code=404, detail="Memory not found")
 
-    result = _serialize_memory(memory)
+    result = _serialize_memory(memory, user.phone_number)
     result["connections"] = get_memory_connections(memory_id, db)
     return result
 
@@ -201,13 +207,54 @@ async def process_endpoint(
     db: Session = Depends(get_db),
 ):
     """Process a URL through the full cognitive pipeline."""
+    from services.cognitive_pipeline import process_batch
+    from db.database import SupabaseSession
+    
     url = url.strip()
     if not re.match(r'^https?://', url):
         raise HTTPException(status_code=400, detail="Invalid URL — must start with http:// or https://")
+        
     try:
-        result = await process_url(url, user.phone_number, db)
-        notify_change("memory_added", str(result.get("memory_id", "")))
-        return result
+        # Check for duplicate
+        normalized_url = url.rstrip("/")
+        if isinstance(db, SupabaseSession):
+            dup_res = db.sb.table("memories").select("id").eq("user_id", str(user.id)).or_(f"source_url.eq.{url},source_url.eq.{normalized_url}").limit(1).execute()
+            if dup_res.data:
+                return {"memory_id": dup_res.data[0]['id'], "duplicate": True, "message": "This link already exists in your memory vault!"}
+        else:
+            existing = db.query(Memory).filter(Memory.user_id == user.id, (Memory.source_url == url) | (Memory.source_url == normalized_url)).first()
+            if existing:
+                return {"memory_id": existing.id, "duplicate": True, "message": "This link already exists in your memory vault!"}
+
+        existing_buckets = _get_user_buckets(user.id, db)
+        entries = await process_batch([url], user.phone_number, db, existing_buckets)
+        
+        if not entries:
+            raise HTTPException(status_code=500, detail="No result from cognitive pipeline")
+            
+        entry = entries[0]
+        if not entry.success:
+            raise HTTPException(status_code=500, detail=entry.error)
+            
+        memory = _save_cognitive_entry(entry, user.id, db)
+        memory_id = getattr(memory, 'id', '')
+        notify_change("memory_added", str(memory_id))
+        
+        return {
+            "memory_id": memory_id,
+            "url": entry.url,
+            "platform": entry.platform,
+            "title": getattr(memory, 'title', ''),
+            "summary": getattr(memory, 'summary', ''),
+            "category": getattr(memory, 'category', ''),
+            "tags": entry.tags,
+            "topic_graph": [],
+            "importance_score": getattr(memory, 'importance_score', 0),
+            "importance_reasons": getattr(memory, 'importance_reasons', []),
+            "connections": [],
+            "resurfaced": [],
+            "thumbnail_url": getattr(memory, 'thumbnail_url', ''),
+        }
     except Exception as e:
         logger.error(f"Pipeline error for {url}: {e}")
         raise HTTPException(status_code=500, detail=f"Processing failed: {str(e)}")
@@ -221,26 +268,9 @@ async def process_video_endpoint(
 ):
     """
     Process a VIDEO URL with transcription.
-    Handles both short (instant) and long (async) videos.
+    Delegates to the main process endpoint since V2 pipeline handles both seamlessly.
     """
-    from services.pipeline import process_video_url_async
-    
-    url = url.strip()
-    if not re.match(r'^https?://', url):
-        raise HTTPException(status_code=400, detail="Invalid URL — must start with http:// or https://")
-    
-    try:
-        result = await process_video_url_async(url, user.phone_number, db)
-        
-        if result.get('status') == 'completed':
-            notify_change("memory_added", str(result.get("memory_id", "")))
-        elif result.get('status') == 'processing':
-            notify_change("job_queued", result.get("job_id", ""))
-        
-        return result
-    except Exception as e:
-        logger.error(f"Video pipeline error for {url}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Processing failed: {str(e)}")
+    return await process_endpoint(url, user, db)
 
 
 # ── Cognitive Pipeline Endpoints ──────────────────────────────
@@ -424,6 +454,11 @@ def get_resurfaced(
     db: Session = Depends(get_db),
 ):
     """Get recently resurfaced memories for the authenticated user."""
+    from db.database import SupabaseSession
+    if isinstance(db, SupabaseSession):
+        user_id = str(getattr(user, 'id', user))
+        rows = db.get_resurfaced(user_id, limit=limit)
+        return [{"id": getattr(r, 'id', ''), "memory_id": getattr(r, 'memory_id', ''), "reason": getattr(r, 'reason', ''), "resurfaced_at": getattr(r, 'resurfaced_at', '')} for r in rows]
     return get_recent_resurfaced(db, limit, user_id=user.id)
 
 
@@ -433,6 +468,21 @@ def get_resurfaced(
 @router.get("/stats")
 def get_stats(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Get dashboard statistics for the authenticated user."""
+    from db.database import SupabaseSession
+    if isinstance(db, SupabaseSession):
+        user_id = str(getattr(user, 'id', user))
+        stats = db.get_stats(user_id)
+        cats = stats.get("categories", {})
+        top_category = max(cats, key=cats.get) if cats else "None"
+        return {
+            "total_memories": stats["total_memories"],
+            "total_connections": stats["total_connections"],
+            "total_resurfaced": stats["total_resurfaced"],
+            "categories": cats,
+            "avg_importance": stats["average_importance"],
+            "top_category": top_category,
+        }
+    
     total_memories = db.query(func.count(Memory.id)).filter(Memory.user_id == user.id).scalar() or 0
 
     # Get connection IDs for this user's memories
@@ -477,6 +527,12 @@ def get_stats(user: User = Depends(get_current_user), db: Session = Depends(get_
 @router.get("/categories")
 def get_categories(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Get all categories with counts for the authenticated user."""
+    from db.database import SupabaseSession
+    if isinstance(db, SupabaseSession):
+        user_id = str(getattr(user, 'id', user))
+        cats = db.get_categories(user_id)
+        return [{"category": cat, "count": 1} for cat in cats]
+    
     results = (
         db.query(Memory.category, func.count(Memory.id))
         .filter(Memory.user_id == user.id)
@@ -496,31 +552,60 @@ def get_random_memory(user: User = Depends(get_current_user), db: Session = Depe
     memory = db.query(Memory).filter(Memory.user_id == user.id).order_by(func.random()).first()
     if not memory:
         raise HTTPException(status_code=404, detail="No memories yet")
-    return _serialize_memory(memory)
+    return _serialize_memory(memory, user.phone_number)
 
 
 # ── Helpers ───────────────────────────────────────────────────
 
 
-def _serialize_memory(memory: Memory) -> dict:
-    """Convert a Memory ORM object to a JSON-serializable dict."""
+def _serialize_memory(memory, user_phone: str = "") -> dict:
+    """Convert a Memory ORM object or SupabaseRow to a JSON-serializable dict."""
+    content = getattr(memory, 'content', '') or ''
+    tags = getattr(memory, 'tags', []) or []
+    topic_graph = getattr(memory, 'topic_graph', []) or []
+    importance_reasons = getattr(memory, 'importance_reasons', []) or []
+    created_at = getattr(memory, 'created_at', '')
+    
+    # Parse JSON strings if needed
+    if isinstance(tags, str):
+        try:
+            tags = json.loads(tags)
+        except (json.JSONDecodeError, TypeError):
+            tags = []
+    if isinstance(topic_graph, str):
+        try:
+            topic_graph = json.loads(topic_graph)
+        except (json.JSONDecodeError, TypeError):
+            topic_graph = []
+    if isinstance(importance_reasons, str):
+        try:
+            importance_reasons = json.loads(importance_reasons)
+        except (json.JSONDecodeError, TypeError):
+            importance_reasons = []
+    
+    # Format created_at
+    if created_at and hasattr(created_at, 'isoformat'):
+        created_at = created_at.isoformat() + "Z"
+    elif isinstance(created_at, str) and created_at:
+        pass  # Already a string
+    else:
+        created_at = ""
+    
     return {
-        "id": memory.id,
-        "url": memory.url,
-        "platform": memory.platform,
-        "title": memory.title,
-        "content": memory.content[:500] if memory.content else "",
-        "summary": memory.summary,
-        "category": memory.category,
-        "tags": json.loads(memory.tags) if memory.tags else [],
-        "topic_graph": json.loads(memory.topic_graph) if memory.topic_graph else [],
-        "importance_score": memory.importance_score,
-        "importance_reasons": (
-            json.loads(memory.importance_reasons) if memory.importance_reasons else []
-        ),
-        "thumbnail_url": memory.thumbnail_url,
-        "user_phone": user.phone_number,
-        "created_at": (memory.created_at.isoformat() + "Z") if memory.created_at else "",
+        "id": getattr(memory, 'id', ''),
+        "url": getattr(memory, 'url', ''),
+        "platform": getattr(memory, 'platform', ''),
+        "title": getattr(memory, 'title', ''),
+        "content": content[:500] if content else "",
+        "summary": getattr(memory, 'summary', ''),
+        "category": getattr(memory, 'category', ''),
+        "tags": tags,
+        "topic_graph": topic_graph,
+        "importance_score": getattr(memory, 'importance_score', 0),
+        "importance_reasons": importance_reasons,
+        "thumbnail_url": getattr(memory, 'thumbnail_url', ''),
+        "user_phone": user_phone,
+        "created_at": created_at,
         "content_quality": getattr(memory, 'content_quality', None),
         "cognitive_mode": getattr(memory, 'cognitive_mode', None),
         "bucket": getattr(memory, 'bucket', None),
@@ -543,43 +628,52 @@ def _get_user_buckets(user_id: str, db: Session) -> list:
         return []
 
 
-def _save_cognitive_entry(entry, user_id: str, db: Session) -> Memory:
+def _save_cognitive_entry(entry, user_id: str, db: Session):
     """Save a CognitiveEntry to the database as a Memory record."""
-    memory = Memory(
-        url=entry.url,
-        platform=entry.platform,
-        title=(entry.title or "")[:512],
-        content=entry.content or "",
-        summary=entry.summary or "",
-        category=entry.bucket or "Uncategorized",
-        tags=json.dumps(entry.tags or []),
-        thumbnail_url=entry.thumbnail_url or "",
-        user_id=user_id,
-        # Transcription fields
-        transcript=entry.transcript or "",
-        transcript_length=len(entry.transcript) if entry.transcript else 0,
-        transcript_source="local" if entry.content_quality == "full_transcript" else "subtitle" if entry.content_quality == "subtitle_only" else "caption",
-        is_video=entry.platform in ("youtube", "instagram", "twitter"),
-        # Cognitive fields
-        cognitive_mode=entry.cognitive_mode or "learn",
-        key_points=json.dumps(entry.key_points or []),
-        bucket=entry.bucket or "Uncategorized",
-        actionability_score=entry.actionability_score or 0.0,
-        emotional_tone=entry.emotional_tone or "neutral",
-        confidence_score=entry.confidence_score or 0.0,
-        # Realistic architecture fields
-        source_type=entry.source_type or "unknown",
-        content_quality=entry.content_quality or "pending",
-        content_hash=entry.content_hash or None,
-        extraction_time_ms=entry.extraction_time_ms or 0,
-        # Status
-        transcription_status="completed" if entry.success else "failed",
-        processed_at=datetime.utcnow() if entry.success else None,
-    )
+    from db.database import SupabaseSession
     
-    db.add(memory)
-    db.commit()
-    db.refresh(memory)
+    data = {
+        "source_url": entry.url,
+        "source": entry.platform,
+        "title": (entry.title or "")[:512],
+        "original_input": entry.content or "",
+        "summary": entry.summary or "",
+        "category": entry.bucket or "Uncategorized",
+        "tags": entry.tags or [],
+        "thumbnail_url": entry.thumbnail_url or "",
+        "user_id": str(user_id),
+        "transcript": entry.transcript or "",
+        "transcript_length": len(entry.transcript) if entry.transcript else 0,
+        "transcript_source": "local" if entry.content_quality == "full_transcript" else "subtitle" if entry.content_quality == "subtitle_only" else "caption",
+        "is_video": entry.platform in ("youtube", "instagram", "twitter"),
+        "cognitive_mode": entry.cognitive_mode or "learn",
+        "key_points": entry.key_points or [],
+        "bucket": entry.bucket or "Uncategorized",
+        "actionability_score": entry.actionability_score or 0.0,
+        "emotional_tone": entry.emotional_tone or "neutral",
+        "confidence_score": entry.confidence_score or 0.0,
+        "source_type": entry.source_type or "unknown",
+        "content_quality": entry.content_quality or "pending",
+        "content_hash": entry.content_hash or None,
+        "extraction_time_ms": entry.extraction_time_ms or 0,
+        "transcription_status": "completed" if entry.success else "failed",
+        "processed_at": datetime.utcnow().isoformat() if entry.success else None,
+    }
+
+    if isinstance(db, SupabaseSession):
+        from db.database import SupabaseRow
+        res = db.sb.table("memories").insert(data).execute()
+        memory = SupabaseRow(res.data[0]) if res.data else None
+    else:
+        # Convert lists to JSON strings for SQLAlchemy if needed
+        data["tags"] = json.dumps(data["tags"])
+        data["key_points"] = json.dumps(data["key_points"])
+        data["processed_at"] = datetime.utcnow() if entry.success else None
+        
+        memory = Memory(**data)
+        db.add(memory)
+        db.commit()
+        db.refresh(memory)
     
-    logger.info(f"Saved cognitive entry: id={memory.id}, quality={entry.content_quality}, bucket={entry.bucket}")
+    logger.info(f"Saved cognitive entry: id={getattr(memory, 'id', 'unknown')}, quality={entry.content_quality}, bucket={entry.bucket}")
     return memory

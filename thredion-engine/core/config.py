@@ -35,7 +35,11 @@ class Settings:
         # Extract project ID and construct PostgreSQL connection with REAL password
         _project_id = SUPABASE_URL.split("//")[1].split(".")[0]
         _encoded_pw = quote_plus(SUPABASE_DB_PASSWORD)
-        DATABASE_URL = f"postgresql+psycopg2://postgres:{_encoded_pw}@db.{_project_id}.supabase.co:5432/postgres"
+        # Use Supabase Connection Pooler (IPv4-capable) instead of db.{project}.supabase.co (IPv6-only)
+        # Pooler requires username format: postgres.{project_id}
+        # Port 5432 = Session mode (required for SQLAlchemy prepared statements)
+        _supabase_region = os.getenv("SUPABASE_REGION", "ap-south-1")
+        DATABASE_URL = f"postgresql+psycopg2://postgres.{_project_id}:{_encoded_pw}@aws-0-{_supabase_region}.pooler.supabase.com:5432/postgres?sslmode=require"
     elif SUPABASE_URL and not SUPABASE_DB_PASSWORD:
         # SUPABASE_URL set but no SUPABASE_DB_PASSWORD → use SQLite
         # This allows app to run locally; production use requires real password

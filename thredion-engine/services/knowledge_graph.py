@@ -91,14 +91,44 @@ def build_connections(new_memory: Memory, db: Session) -> list[dict]:
     return connections_created
 
 
-def get_full_graph(db: Session, user_phone: str = "") -> dict:
+def get_full_graph(db: Session, user_id: str = "") -> dict:
     """
     Build the knowledge graph for the dashboard, scoped to a user.
     Returns nodes and edges.
     """
+    from db.database import SupabaseSession
+    if isinstance(db, SupabaseSession):
+        memories = db.get_memories(user_id, limit=1000)
+        connections = db.get_connections(user_id)
+        
+        mem_ids = {str(getattr(m, 'id')) for m in memories}
+        
+        nodes = [
+            {
+                "id": getattr(m, 'id'),
+                "title": getattr(m, 'title') or (getattr(m, 'summary', '')[:40] if getattr(m, 'summary') else f"Memory #{getattr(m, 'id')}"),
+                "category": getattr(m, 'category'),
+                "importance_score": getattr(m, 'importance_score', 0),
+                "url": getattr(m, 'url'),
+            }
+            for m in memories
+        ]
+        
+        edges = [
+            {
+                "source": getattr(c, 'source_id'),
+                "target": getattr(c, 'target_id'),
+                "weight": getattr(c, 'similarity_score', 0.0),
+            }
+            for c in connections
+            if str(getattr(c, 'source_id')) in mem_ids and str(getattr(c, 'target_id')) in mem_ids
+        ]
+        
+        return {"nodes": nodes, "edges": edges}
+
     q = db.query(Memory)
-    if user_phone:
-        q = q.filter(Memory.user_phone == user_phone)
+    if user_id:
+        q = q.filter(Memory.user_id == user_id)
     memories = q.all()
     mem_ids = {m.id for m in memories}
     connections = [
@@ -131,6 +161,28 @@ def get_full_graph(db: Session, user_phone: str = "") -> dict:
 
 def get_memory_connections(memory_id: int, db: Session) -> list[dict]:
     """Get all connections for a specific memory."""
+    from db.database import SupabaseSession
+    if isinstance(db, SupabaseSession):
+        # We need a custom method to get connections for a specific memory
+        # since SupabaseSession currently only has get_connections by user_id.
+        res = db.sb.table("connections").select("*").or_(f"source_id.eq.{memory_id},target_id.eq.{memory_id}").execute()
+        connections = res.data or []
+        
+        result = []
+        for conn in connections:
+            other_id = conn['target_id'] if conn['source_id'] == memory_id else conn['source_id']
+            other_res = db.sb.table("memories").select("*").eq("id", other_id).limit(1).execute()
+            if other_res.data:
+                other = other_res.data[0]
+                result.append({
+                    "connected_memory_id": other['id'],
+                    "connected_memory_title": other.get('title') or other.get('summary', '')[:50],
+                    "connected_memory_summary": other.get('summary'),
+                    "connected_memory_category": other.get('category'),
+                    "similarity_score": conn.get('similarity_score', 0.0),
+                })
+        return result
+
     connections = (
         db.query(Connection)
         .filter(

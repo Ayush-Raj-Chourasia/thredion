@@ -11,7 +11,7 @@ Thredion is not just a link saver — it's a **cognitive layer** that understand
 | | Link |
 |---|---|
 | **Dashboard** | [thredion.vercel.app](https://thredion.vercel.app) |
-| **API** | [thredion-api.azurewebsites.net](https://thredion-api.azurewebsites.net) |
+| **API** | [alphacalculus-thredion-api.hf.space](https://alphacalculus-thredion-api.hf.space) |
 | **WhatsApp Bot** | [**Chat on WhatsApp →**](https://wa.me/14155238886?text=join%20deep-third) |
 
 > **How to connect the WhatsApp Bot:**
@@ -415,10 +415,10 @@ python -m pytest tests/ -v
 
 | Component | Platform | URL |
 |-----------|----------|-----|
-| **Backend API** | Azure App Service (Free F1) | [thredion-api.azurewebsites.net](https://thredion-api.azurewebsites.net) |
+| **Backend API** | Hugging Face Spaces | [alphacalculus-thredion-api.hf.space](https://alphacalculus-thredion-api.hf.space) |
 | **Dashboard** | Vercel | [thredion.vercel.app](https://thredion.vercel.app) |
 | **WhatsApp Bot** | Twilio Sandbox | [Chat on WhatsApp →](https://wa.me/14155238886?text=join%20deep-third) |
-| **API Docs** | Swagger UI | [thredion-api.azurewebsites.net/docs](https://thredion-api.azurewebsites.net/docs) |
+| **API Docs** | Swagger UI | [alphacalculus-thredion-api.hf.space/docs](https://alphacalculus-thredion-api.hf.space/docs) |
 
 ---
 
