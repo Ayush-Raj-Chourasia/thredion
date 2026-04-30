@@ -153,7 +153,7 @@ def get_memory(memory_id: int, user: User = Depends(get_current_user), db: Sessi
 
 
 @router.post("/memories")
-def create_memory(
+async def create_memory(
     url: str = Query(..., description="URL to save"),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -195,7 +195,7 @@ def delete_memory(memory_id: int, user: User = Depends(get_current_user), db: Se
 
 
 @router.post("/process")
-def process_endpoint(
+async def process_endpoint(
     url: str = Query(..., description="URL to process"),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
