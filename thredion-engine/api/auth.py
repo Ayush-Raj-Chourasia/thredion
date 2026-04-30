@@ -8,7 +8,10 @@ import random
 import re
 from datetime import datetime, timedelta, timezone
 
-import jwt
+try:
+    from jose import jwt
+except ImportError:
+    import jwt
 from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.orm import Session
 
@@ -173,30 +176,38 @@ def verify_otp(phone: str, code: str, db: Session = Depends(get_db)):
     if not otp:
         raise HTTPException(status_code=400, detail="Invalid or expired OTP")
 
-    # Mark OTP as used
-    otp.is_used = True
+    try:
+        # Upsert user
+        user = db.query(User).filter(User.phone_number == phone).first()
+        if not user:
+            logger.info(f"Creating new user for phone: {phone}")
+            user = User(phone_number=phone)
+            db.add(user)
+            db.flush() # Get ID without committing yet
+        
+        user.last_login = now
+        
+        # Generate token BEFORE marking OTP as used
+        token = _create_token(phone)
 
-    # Upsert user
-    user = db.query(User).filter(User.phone_number == phone).first()
-    if not user:
-        user = User(phone_number=phone)
-        db.add(user)
-    user.last_login = now
+        # Only if everything above worked, mark OTP as used
+        otp.is_used = True
+        db.commit()
+        db.refresh(user)
 
-    db.commit()
-    db.refresh(user)
-
-    token = _create_token(phone)
-
-    return {
-        "token": token,
-        "user": {
-            "id": user.id,
-            "phone_number": user.phone_number,
-            "name": user.name,
-            "created_at": user.created_at.isoformat(),
-        },
-    }
+        return {
+            "token": token,
+            "user": {
+                "id": user.id,
+                "phone_number": user.phone_number,
+                "name": user.name,
+                "created_at": user.created_at.isoformat() if user.created_at else now.isoformat(),
+            },
+        }
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error in verify_otp for {phone}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {type(e).__name__}")
 
 
 @router.get("/me")

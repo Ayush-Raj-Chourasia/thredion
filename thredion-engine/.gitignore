@@ -13,3 +13,4 @@ venv/
 !README.md
 *.pdf
 FINAL_DELIVERY_SUMMARY.txt
+tests

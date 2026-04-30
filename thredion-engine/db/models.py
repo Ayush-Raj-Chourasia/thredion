@@ -24,8 +24,10 @@ class User(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     phone_number = Column(String(50), unique=True, nullable=False, index=True)
-    username = Column(String(200), default="")
+    name = Column(String(200), default="")
     email = Column(String(200), nullable=True)
+    last_login = Column(DateTime(timezone=True), nullable=True)
+    is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), default=_utcnow)
     updated_at = Column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
 
