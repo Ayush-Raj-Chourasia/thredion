@@ -149,7 +149,11 @@ def list_memories(
 @router.get("/memories/{memory_id}")
 def get_memory(memory_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Get a single memory with its connections (owned by current user)."""
-    memory = db.query(Memory).filter(Memory.id == memory_id, Memory.user_id == user.id).first()
+    from db.database import SupabaseSession
+    if isinstance(db, SupabaseSession):
+        memory = db.get_memory_by_id(memory_id, str(user.id))
+    else:
+        memory = db.query(Memory).filter(Memory.id == memory_id, Memory.user_id == user.id).first()
     if not memory:
         raise HTTPException(status_code=404, detail="Memory not found")
 
@@ -180,19 +184,26 @@ async def create_memory(
 @router.delete("/memories/{memory_id}")
 def delete_memory(memory_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Delete a memory owned by the current user."""
-    memory = db.query(Memory).filter(Memory.id == memory_id, Memory.user_id == user.id).first()
+    from db.database import SupabaseSession
+    if isinstance(db, SupabaseSession):
+        memory = db.get_memory_by_id(memory_id, str(user.id))
+    else:
+        memory = db.query(Memory).filter(Memory.id == memory_id, Memory.user_id == user.id).first()
     if not memory:
         raise HTTPException(status_code=404, detail="Memory not found")
-    # Delete related connections (both directions)
-    db.query(Connection).filter(
-        (Connection.source_id == memory_id) | (Connection.target_id == memory_id)
-    ).delete(synchronize_session=False)
-    # Delete related resurfaced entries
-    db.query(ResurfacedMemory).filter(
-        (ResurfacedMemory.memory_id == memory_id) | (ResurfacedMemory.triggered_by_id == memory_id)
-    ).delete(synchronize_session=False)
-    db.delete(memory)
-    db.commit()
+    if isinstance(db, SupabaseSession):
+        db.delete_memory(memory_id, str(user.id))
+    else:
+        # Delete related connections (both directions)
+        db.query(Connection).filter(
+            (Connection.source_id == memory_id) | (Connection.target_id == memory_id)
+        ).delete(synchronize_session=False)
+        # Delete related resurfaced entries
+        db.query(ResurfacedMemory).filter(
+            (ResurfacedMemory.memory_id == memory_id) | (ResurfacedMemory.triggered_by_id == memory_id)
+        ).delete(synchronize_session=False)
+        db.delete(memory)
+        db.commit()
     notify_change("memory_deleted", str(memory_id))
     return {"detail": "Memory deleted", "id": memory_id}
 
@@ -549,7 +560,12 @@ def get_categories(user: User = Depends(get_current_user), db: Session = Depends
 @router.get("/random")
 def get_random_memory(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Get a random memory for the authenticated user."""
-    memory = db.query(Memory).filter(Memory.user_id == user.id).order_by(func.random()).first()
+    from db.database import SupabaseSession
+    if isinstance(db, SupabaseSession):
+        rows = db.get_memories(str(user.id), sort="newest", limit=1)
+        memory = rows[0] if rows else None
+    else:
+        memory = db.query(Memory).filter(Memory.user_id == user.id).order_by(func.random()).first()
     if not memory:
         raise HTTPException(status_code=404, detail="No memories yet")
     return _serialize_memory(memory, user.phone_number)
@@ -614,7 +630,19 @@ def _serialize_memory(memory, user_phone: str = "") -> dict:
 
 def _get_user_buckets(user_id: str, db: Session) -> list:
     """Get list of distinct bucket names for a user."""
+    from db.database import SupabaseSession
     try:
+        if isinstance(db, SupabaseSession):
+            results = db.sb.table("memories").select("bucket").eq("user_id", str(user_id)).execute()
+            buckets = []
+            seen = set()
+            for row in results.data or []:
+                bucket = row.get("bucket") if isinstance(row, dict) else getattr(row, "bucket", None)
+                if bucket and bucket != "Uncategorized" and bucket not in seen:
+                    seen.add(bucket)
+                    buckets.append(bucket)
+            return buckets
+
         results = (
             db.query(Memory.bucket)
             .filter(Memory.user_id == user_id)
@@ -654,7 +682,6 @@ def _save_cognitive_entry(entry, user_id: str, db: Session):
         "confidence_score": entry.confidence_score or 0.0,
         "source_type": entry.source_type or "unknown",
         "content_quality": entry.content_quality or "pending",
-        "content_hash": entry.content_hash or None,
         "extraction_time_ms": entry.extraction_time_ms or 0,
         "transcription_status": "completed" if entry.success else "failed",
         "processed_at": datetime.utcnow().isoformat() if entry.success else None,

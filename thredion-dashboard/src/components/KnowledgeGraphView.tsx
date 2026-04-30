@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Network, Loader2 } from "lucide-react";
-import { cn, categoryDotColor } from "@/lib/utils";
+import { cn, categoryColor, categoryDotColor } from "@/lib/utils";
 import type { KnowledgeGraph } from "@/lib/types";
 import { getGraph } from "@/lib/api";
 import { useTheme } from "@/components/ThemeProvider";
@@ -10,12 +10,13 @@ import { useTheme } from "@/components/ThemeProvider";
 export default function KnowledgeGraphView({ refreshKey }: { refreshKey?: number }) {
   const { theme } = useTheme();
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
   const [graph, setGraph] = useState<KnowledgeGraph | null>(null);
   const [loading, setLoading] = useState(true);
-  const [hoveredNode, setHoveredNode] = useState<number | null>(null);
+  const [hoveredNode, setHoveredNode] = useState<string | null>(null);
 
   // Node positions (force-directed simulation)
-  const positionsRef = useRef<Map<number, { x: number; y: number; vx: number; vy: number }>>(
+  const positionsRef = useRef<Map<string, { x: number; y: number; vx: number; vy: number }>>(
     new Map()
   );
 
@@ -125,6 +126,23 @@ export default function KnowledgeGraphView({ refreshKey }: { refreshKey?: number
     return () => window.removeEventListener("resize", resize);
   }, [graph, hoveredNode]);
 
+  useEffect(() => {
+    const tooltip = tooltipRef.current;
+    const canvas = canvasRef.current;
+    if (!tooltip || !canvas || hoveredNode === null || !graph) return;
+
+    const node = graph.nodes.find((n) => n.id === hoveredNode);
+    const pos = positionsRef.current.get(hoveredNode);
+    if (!node || !pos) return;
+
+    const cW = canvas.width;
+    const tipLeft = pos.x + 20 + 200 > cW ? pos.x - 220 : pos.x + 20;
+    const tipTop = pos.y - 10 < 0 ? pos.y + 20 : pos.y - 10;
+
+    tooltip.style.left = `${tipLeft}px`;
+    tooltip.style.top = `${tipTop}px`;
+  }, [graph, hoveredNode]);
+
   // Mouse hover
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!graph || !canvasRef.current) return;
@@ -132,7 +150,7 @@ export default function KnowledgeGraphView({ refreshKey }: { refreshKey?: number
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
 
-    let found: number | null = null;
+    let found: string | null = null;
     positionsRef.current.forEach((pos, id) => {
       const dx = pos.x - mx;
       const dy = pos.y - my;
@@ -184,7 +202,7 @@ export default function KnowledgeGraphView({ refreshKey }: { refreshKey?: number
           onMouseMove={handleMouseMove}
           onMouseLeave={() => setHoveredNode(null)}
           className="w-full cursor-crosshair"
-          style={{ minHeight: "400px" }}
+          aria-label="Knowledge graph canvas"
         />
 
         {/* Hovered node tooltip */}
@@ -192,14 +210,10 @@ export default function KnowledgeGraphView({ refreshKey }: { refreshKey?: number
           const node = graph.nodes.find((n) => n.id === hoveredNode);
           const pos = positionsRef.current.get(hoveredNode);
           if (!node || !pos || !canvasRef.current) return null;
-          const cW = canvasRef.current.width;
-          const cH = canvasRef.current.height;
-          const tipLeft = pos.x + 20 + 200 > cW ? pos.x - 220 : pos.x + 20;
-          const tipTop = pos.y - 10 < 0 ? pos.y + 20 : pos.y - 10;
           return (
             <div
+              ref={tooltipRef}
               className="absolute z-10 max-w-[200px] rounded-lg bg-surface-900 px-3 py-2 text-xs text-white shadow-lg pointer-events-none"
-              style={{ left: tipLeft, top: tipTop }}
             >
               <p className="font-medium truncate">{node.title}</p>
               <p className="text-surface-300">{node.category} · Score: {node.importance_score}</p>
@@ -212,10 +226,7 @@ export default function KnowledgeGraphView({ refreshKey }: { refreshKey?: number
       <div className="flex flex-wrap gap-3 px-1">
         {uniqueCategories.map((cat) => (
           <div key={cat} className="flex items-center gap-1.5">
-            <span
-              className="h-3 w-3 rounded-full"
-              style={{ backgroundColor: categoryDotColor(cat) }}
-            />
+            <span className={cn("h-3 w-3 rounded-full border", categoryColor(cat))} />
             <span className="text-[11px] text-surface-600 dark:text-gray-400">{cat}</span>
           </div>
         ))}
@@ -229,8 +240,8 @@ export default function KnowledgeGraphView({ refreshKey }: { refreshKey?: number
 function drawGraph(
   canvas: HTMLCanvasElement,
   graph: KnowledgeGraph,
-  positions: Map<number, { x: number; y: number; vx: number; vy: number }>,
-  hoveredNode: number | null,
+  positions: Map<string, { x: number; y: number; vx: number; vy: number }>,
+  hoveredNode: string | null,
   isDark: boolean = false
 ) {
   const ctx = canvas.getContext("2d");
