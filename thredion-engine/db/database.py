@@ -124,23 +124,50 @@ class SupabaseSession:
     
     def get_user_by_phone(self, phone: str):
         """Look up a user by phone number."""
-        result = self.sb.table("users").select("*").eq("phone_number", phone).limit(1).execute()
-        if result.data:
-            return SupabaseRow(result.data[0])
-        return None
-    
-    def get_user_by_phone(self, phone: str):
-        """Look up a user by phone number."""
-        result = self.sb.table("users").select("*").eq("phone_number", str(phone)).limit(1).execute()
-        if result.data:
-            return SupabaseRow(result.data[0])
+        from httpx import RemoteProtocolError
+
+        last_error = None
+        for attempt in range(2):
+            try:
+                result = self.sb.table("users").select("*").eq("phone_number", str(phone)).limit(1).execute()
+                if result.data:
+                    return SupabaseRow(result.data[0])
+                return None
+            except RemoteProtocolError as exc:
+                last_error = exc
+                if attempt == 0:
+                    global _supabase_client
+                    _supabase_client = None
+                    self.sb = _get_supabase()
+                    continue
+                break
+
+        if last_error:
+            raise last_error
         return None
 
     def get_user_by_id(self, user_id: str):
         """Look up a user by ID."""
-        result = self.sb.table("users").select("*").eq("id", str(user_id)).limit(1).execute()
-        if result.data:
-            return SupabaseRow(result.data[0])
+        from httpx import RemoteProtocolError
+
+        last_error = None
+        for attempt in range(2):
+            try:
+                result = self.sb.table("users").select("*").eq("id", str(user_id)).limit(1).execute()
+                if result.data:
+                    return SupabaseRow(result.data[0])
+                return None
+            except RemoteProtocolError as exc:
+                last_error = exc
+                if attempt == 0:
+                    global _supabase_client
+                    _supabase_client = None
+                    self.sb = _get_supabase()
+                    continue
+                break
+
+        if last_error:
+            raise last_error
         return None
     
     def get_memories(self, user_id: str, sort="newest", category=None, search=None, limit=50, offset=0):
