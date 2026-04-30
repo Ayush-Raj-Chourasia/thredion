@@ -350,6 +350,26 @@ def _get_youtube_metadata_quick(video_id: str) -> Dict[str, Any]:
     """
     url = f"https://www.youtube.com/watch?v={video_id}"
     
+    # Try oEmbed first because it is fast and usually works even when
+    # transcript/yt-dlp access is blocked from cloud IPs.
+    try:
+        oembed = requests.get(
+            "https://www.youtube.com/oembed",
+            params={"url": url, "format": "json"},
+            headers=HEADERS,
+            timeout=4,
+        )
+        if oembed.status_code == 200:
+            data = oembed.json()
+            return {
+                "title": data.get("title", ""),
+                "thumbnail_url": data.get("thumbnail_url", f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg"),
+                "duration": 0,
+                "channel": data.get("author_name", ""),
+            }
+    except Exception as e:
+        logger.warning(f"oEmbed metadata lookup failed for {video_id}: {e}")
+
     try:
         ydl_opts = {
             "quiet": True,
@@ -373,7 +393,7 @@ def _get_youtube_metadata_quick(video_id: str) -> Dict[str, Any]:
             "title": f"YouTube Video {video_id}",
             "duration": 0,
             "channel": "Unknown",
-            "thumbnail_url": f"https://img.youtube.com/vi/{video_id}/maxresdefault.jpg",
+            "thumbnail_url": f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg",
         }
 
 
@@ -462,16 +482,18 @@ def extract_metadata_only(video_id: str) -> YouTubeResult:
     Confidence: LOW (0.3) because it's incomplete
     """
     metadata = _get_youtube_metadata_quick(video_id)
+    title = metadata.get("title", "") or f"YouTube Video {video_id}"
+    thumbnail_url = metadata.get("thumbnail_url", "") or f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg"
     
     return YouTubeResult(
-        title=metadata.get("title", ""),
-        content=metadata.get("title", ""),  # Just use title as content
-        thumbnail_url=metadata.get("thumbnail_url", ""),
+        title=title,
+        content=title,  # Use title as real metadata, not fabricated copy
+        thumbnail_url=thumbnail_url,
         duration_seconds=metadata.get("duration", 0),
         video_id=video_id,
         channel_name=metadata.get("channel", ""),
         source_type="metadata_only",  # 🔴 Be honest - this is degraded
-        transcript_length=len(metadata.get("title", "")),
+        transcript_length=len(title),
         failure_reason="All transcription methods failed, returning metadata only",
         failure_class="permanent",
     )

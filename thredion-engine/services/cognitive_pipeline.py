@@ -36,6 +36,27 @@ from services.twitter_extractor import extract_twitter
 logger = logging.getLogger(__name__)
 
 
+def _youtube_fallback_metadata(url: str) -> dict:
+    """Build a real YouTube metadata fallback from the video id."""
+    try:
+        from services.youtube_extractor import normalize_youtube_url
+
+        video_id, _ = normalize_youtube_url(url)
+        return {
+            "title": f"YouTube Video {video_id}",
+            "thumbnail_url": f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg",
+            "duration_seconds": 0,
+            "source_type": "metadata_only",
+        }
+    except Exception:
+        return {
+            "title": "YouTube Video",
+            "thumbnail_url": "",
+            "duration_seconds": 0,
+            "source_type": "metadata_only",
+        }
+
+
 def _sanitize_thumbnail_url(url: str) -> str:
     """Avoid storing browser-blocked thumbnail URLs from Instagram/CDN hosts."""
     if not url:
@@ -128,7 +149,7 @@ async def process_cognitive_entry(
             )
         except asyncio.TimeoutError:
             logger.warning(f"[COGNITIVE] Metadata extraction timed out for {url}")
-            caption, metadata = "", {"title": "", "thumbnail_url": "", "duration_seconds": 0, "source_type": "unknown"}
+            caption, metadata = "", _youtube_fallback_metadata(url) if platform == "youtube" else {"title": "", "thumbnail_url": "", "duration_seconds": 0, "source_type": "unknown"}
         entry.title = metadata.get("title", "")
         entry.thumbnail_url = metadata.get("thumbnail_url", "")
         entry.duration_seconds = metadata.get("duration_seconds", 0)
@@ -241,8 +262,8 @@ def _extract_metadata_sync(url: str, platform: str) -> tuple:
             result = extract_youtube(url)
             caption = result.content or ""
             metadata = {
-                "title": result.title,
-                "thumbnail_url": result.thumbnail_url,
+                "title": result.title or _youtube_fallback_metadata(url)["title"],
+                "thumbnail_url": result.thumbnail_url or _youtube_fallback_metadata(url)["thumbnail_url"],
                 "duration_seconds": result.duration_seconds,
                 "source_type": result.source_type,
             }
